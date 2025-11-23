@@ -8,6 +8,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
+import chess.misc.Pgn;
+
 /**
  * Appends JSON objects to a file that stores a single top-level JSON array.
  * <p>
@@ -38,6 +40,17 @@ public final class Writer {
      */
     private Writer() {
         // non-instantiable
+    }
+
+    /**
+     * Writes games to a PGN file (overwriting existing content).
+     *
+     * @param path  destination file
+     * @param games games to serialize; null/empty writes an empty file
+     * @throws IOException if writing fails
+     */
+    public static void writePgn(Path path, List<chess.model.Game> games) throws IOException {
+        Pgn.write(path, games);
     }
 
     /**

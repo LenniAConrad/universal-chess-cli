@@ -5899,6 +5899,22 @@ public class Setup {
 	 * @return a list of randomized, legal positions.
 	 */
 	public static List<Position> getRandomPositions(int count, boolean chess960) {
+		return getRandomPositionSeeds(count, chess960)
+				.stream()
+				.map(PositionSeed::position)
+				.toList();
+	}
+
+	/**
+	 * Generates random positions together with their immediate parents (the position
+	 * before the last random move). When a seed was not able to play a move, the
+	 * parent is {@code null}.
+	 *
+	 * @param count    number of positions to generate
+	 * @param chess960 whether to start from Chess960 initial positions
+	 * @return list of position/parent pairs
+	 */
+	public static List<PositionSeed> getRandomPositionSeeds(int count, boolean chess960) {
 		if (count <= 0) {
 			return Collections.emptyList();
 		}
@@ -5915,26 +5931,29 @@ public class Setup {
 		Supplier<Position> freshStart = freshStartSupplier(chess960);
 
 		Position seed = freshStart.get();
-		playRandomPlies(seed, randomRange(rnd, warmupMinPlies, warmupMaxPlies));
+		Position[] holder = new Position[1];
+		playRandomPlies(seed, randomRange(rnd, warmupMinPlies, warmupMaxPlies), holder);
 
-		List<Position> positions = new ArrayList<>(count);
+		List<PositionSeed> positions = new ArrayList<>(count);
 		List<Position> pool = new ArrayList<>(Math.max(32, count));
 		pool.add(seed.copyOf());
 
 		while (positions.size() < count) {
 			Position base = chooseBase(pool, branchProb, rnd);
-			playRandomPlies(base, randomRange(rnd, stepMinPlies, stepMaxPlies));
+			holder[0] = null;
+			playRandomPlies(base, randomRange(rnd, stepMinPlies, stepMaxPlies), holder);
 
 			if (needsRestart(base, restartProb, rnd)) {
-				addSnapshot(positions, pool, base);
+				addSnapshot(positions, pool, base, holder[0]);
 				Position restart = freshStart.get();
 				int kick = randomRange(rnd, warmupMinPlies / 2, warmupMaxPlies / 2);
-				playRandomPlies(restart, kick);
+				holder[0] = null;
+				playRandomPlies(restart, kick, holder);
 				pool.add(restart.copyOf());
 				continue;
 			}
 
-			addSnapshot(positions, pool, base);
+			addSnapshot(positions, pool, base, holder[0]);
 		}
 
 		return positions;
@@ -5960,26 +5979,37 @@ public class Setup {
 	 * @param position the position to mutate by playing random moves.
 	 * @param plies    the maximum number of plies to play.
 	 */
-	private static void playRandomPlies(Position position, int plies) {
+	private static void playRandomPlies(Position position, int plies, Position[] lastParent) {
 		for (int i = 0; i < plies; i++) {
-			boolean stop = false;
-			MoveList moves = position.getMoves();
-			stop = moves == null || sizeIsZeroSafe(moves);
-			if (!stop) {
-				short move = moves.getRandomMove();
-				stop = move == Move.NO_MOVE;
-				if (!stop) {
-					try {
-						position.play(move);
-					} catch (Exception e) {
-						stop = true;
-					}
-				}
-			}
-			if (stop) {
+			if (stopOnNoMove(position, lastParent)) {
 				break;
 			}
 		}
+	}
+
+	//todo add javadoc
+	private static boolean stopOnNoMove(Position position, Position[] lastParent) {
+		MoveList moves = position.getMoves();
+		if (moves == null || sizeIsZeroSafe(moves)) {
+			return true;
+		}
+
+		short move = moves.getRandomMove();
+		if (move == Move.NO_MOVE) {
+			return true;
+		}
+
+		if (lastParent != null) {
+			lastParent[0] = position.copyOf();
+		}
+
+		try {
+			position.play(move);
+		} catch (Exception e) {
+			return true;
+		}
+
+		return false;
 	}
 
 	/**
@@ -6064,10 +6094,19 @@ public class Setup {
 	 * @param pool the pool of prior positions to branch from.
 	 * @param src  the source position to copy.
 	 */
-	private static void addSnapshot(List<Position> out, List<Position> pool, Position src) {
+	private static void addSnapshot(List<PositionSeed> out, List<Position> pool, Position src, Position parent) {
 		Position copy = src.copyOf();
-		out.add(copy);
+		out.add(new PositionSeed(parent != null ? parent.copyOf() : null, copy));
 		pool.add(copy);
+	}
+
+	/**
+	 * Represents a snapshot of a position in the game, including its parent position.
+	 *
+	 * @param parent  the parent position (may be null)
+	 * @param position the current position
+	 */
+	public record PositionSeed(Position parent, Position position) {
 	}
 
 }

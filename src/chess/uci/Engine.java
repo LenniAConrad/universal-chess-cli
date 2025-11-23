@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import chess.core.Position;
 import chess.debug.LogService;
 import chess.model.Record;
+import chess.tag.Tagging;
 
 /**
  * Manages a UCI‐compatible chess engine process and drives it via
@@ -48,6 +49,13 @@ public class Engine implements AutoCloseable {
 	 * milliseconds or 10 minutes.
 	 */
 	private static final long STOP_TIMEOUT = 600_000;
+
+	/**
+	 * Used for throttling the busy wait loop when polling the engine output. Tuned
+	 * to ~5ms to match typical Stockfish info cadence without adding visible
+	 * latency.
+	 */
+	private static final long OUTPUT_POLL_SLEEP_MS = 5;
 
 	/**
 	 * Logs the last output of the chess {@code Engine}.
@@ -373,6 +381,8 @@ public class Engine implements AutoCloseable {
 					stopTimestamp = markUnresponsive(duration);
 					engineUnresponsive = true;
 				}
+			} else {
+				yieldForEngineOutput();
 			}
 		}
 
@@ -403,6 +413,7 @@ public class Engine implements AutoCloseable {
 		Position position = sample.getPosition();
 		Analysis analysis = sample.getAnalysis();
 		sample.withEngine(protocol.getName()).withCreated(System.currentTimeMillis());
+		sample.addTags(Tagging.positionalTags(sample.getParent(), position));
 		return analyse(position, analysis, arguments, nodes, duration);
 	}
 
@@ -454,6 +465,19 @@ public class Engine implements AutoCloseable {
 	 */
 	private boolean timeoutExceeded(long startTime, long duration) {
 		return System.currentTimeMillis() - startTime >= duration;
+	}
+
+	/**
+	 * Used for yielding the thread briefly when we have nothing to read.
+	 * 
+	 * @implNote this helps to avoid busy waiting and reduces CPU usage by ~50%
+	 */
+	private void yieldForEngineOutput() {
+		try {
+			TimeUnit.MILLISECONDS.sleep(OUTPUT_POLL_SLEEP_MS);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
 	}
 
 	/**

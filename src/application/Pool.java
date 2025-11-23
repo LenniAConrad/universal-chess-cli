@@ -12,6 +12,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import application.console.Bar;
 import chess.debug.LogService;
 import chess.model.Record;
 import chess.uci.Filter;
@@ -110,19 +111,27 @@ public final class Pool implements AutoCloseable {
             long maxDurationMs) {
         final List<Record> out = new ArrayList<>(records.size());
         final List<Callable<Void>> jobs = new ArrayList<>(records.size());
+        final Bar progressBar = new Bar(records.size());
 
         for (Record rec : records) {
             jobs.add(() -> {
-                Engine eng = engines.take();
+                Engine eng = null;
                 try {
-                    eng.analyse(rec, accelerate, maxNodes, maxDurationMs);
-                } catch (IOException ioe) {
-                    LogService.error(ioe, "Engine analyse failed.");
+                    eng = engines.take();
+                    try {
+                        eng.analyse(rec, accelerate, maxNodes, maxDurationMs);
+                    } catch (IOException ioe) {
+                        LogService.error(ioe, "Engine analyse failed.");
+                    } finally {
+                        if (eng != null) {
+                            engines.put(eng);
+                        }
+                    }
+                    synchronized (out) {
+                        out.add(rec);
+                    }
                 } finally {
-                    engines.put(eng);
-                }
-                synchronized (out) {
-                    out.add(rec);
+                    progressBar.step();
                 }
                 return null;
             });
@@ -141,6 +150,7 @@ public final class Pool implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+        progressBar.finish();
         return out;
     }
 

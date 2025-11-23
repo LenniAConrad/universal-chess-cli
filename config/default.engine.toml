@@ -28,5 +28,6 @@ showWinDrawLoss       = "setoption name UCI_ShowWDL value %b"    # Used for iden
 setup = [
    "setoption name UCI_ShowWDL value true",
    "setoption name Hash value 4000",
+   "setoption name threads value 4",
    "setoption name multipv value 2" # Has to be at least 2 for mining chess puzzles
 ]

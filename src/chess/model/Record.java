@@ -370,20 +370,47 @@ public class Record {
     public String toJson() {
         StringBuilder sb = new StringBuilder(256);
         sb.append('{');
-        sb.append('"').append("created").append('"').append(':').append(created).append(',');
-        sb.append('"').append("engine").append('"').append(':').append('"').append(Json.esc(engine)).append('"')
-                .append(',');
-        sb.append('"').append("parent").append('"').append(':').append('"')
-                .append(Json.esc(parent != null ? parent.toString() : null)).append('"').append(',');
-        sb.append('"').append("position").append('"').append(':').append('"')
-                .append(Json.esc(position != null ? position.toString() : null)).append('"').append(',');
-        sb.append('"').append("description").append('"').append(':').append('"').append(Json.esc(description))
-                .append('"').append(',');
-        sb.append('"').append("tags").append('"').append(':').append(tags != null ? Json.stringArray(tags) : "[]")
-                .append(',');
-        sb.append('"').append("analysis").append('"').append(':').append(analysis != null ? analysis.toString() : "[]");
+        appendNumberField(sb, "created", created);
+        sb.append(',');
+        appendStringField(sb, "engine", engine);
+        sb.append(',');
+        appendStringField(sb, "parent", parent != null ? parent.toString() : null);
+        sb.append(',');
+        appendStringField(sb, "position", position != null ? position.toString() : null);
+        sb.append(',');
+        appendStringField(sb, "description", description);
+        sb.append(',');
+        appendRawField(sb, "tags", tags != null ? Json.stringArray(tags) : "[]");
+        sb.append(',');
+        appendRawField(sb, "analysis", analysis != null ? analysis.toString() : "[]");
         sb.append('}');
         return sb.toString();
+    }
+
+    private static void appendNumberField(StringBuilder sb, String name, long value) {
+        sb.append('"').append(name).append('"').append(':').append(value);
+    }
+
+    /**
+     * Appends a JSON string field with escaping, e.g. {@code "name":"value"}.
+     *
+     * @param sb    target builder
+     * @param name  JSON field name
+     * @param value raw value to escape; may be {@code null}
+     */
+    private static void appendStringField(StringBuilder sb, String name, String value) {
+        sb.append('"').append(name).append('"').append(':').append('"').append(Json.esc(value)).append('"');
+    }
+
+    /**
+     * Appends a JSON field whose value is already formatted JSON (array/object).
+     *
+     * @param sb      target builder
+     * @param name    JSON field name
+     * @param rawJson preformatted JSON payload (e.g., array string)
+     */
+    private static void appendRawField(StringBuilder sb, String name, String rawJson) {
+        sb.append('"').append(name).append('"').append(':').append(rawJson);
     }
 
     /**

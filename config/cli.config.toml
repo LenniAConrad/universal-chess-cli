@@ -20,12 +20,12 @@ output = "dump/"
 # For example, setting this to 4 will run 4 separate copies of the engine (e.g., Stockfish)
 # concurrently. Useful for batch processing positions across multiple CPU cores.
 # Only increase if your system can handle the load and your engine is thread-safe.
-engine-instances = 2
+engine-instances = 4
 
 # SEARCH LIMITS (per evaluated position)
 # Maximum nodes the engine may search before the run is stopped.
 # Passed as:  go nodes <max-nodes>
-max-nodes = 1_000_000_000
+max-nodes = 50_000_000
 
 # Maximum wall time (ms) the engine may think before being aborted.
 # If a position exceeds this, the search is forcefully stopped.
@@ -54,7 +54,7 @@ leaf[gate=AND;break=2;null=false;empty=false;nodes>=50000000];
 puzzle-winning = """
 gate=AND;
 leaf[eval>=300];
-leaf[break=2;eval<=0];
+leaf[break=2;null=false;eval<=0];
 """
 
 # Drawing puzzle:
@@ -65,7 +65,7 @@ leaf[break=2;eval<=0];
 puzzle-drawing = """
 gate=AND;
 leaf[eval>=0];
-leaf[break=2;eval<=-300];
+leaf[break=2;null=false;eval<=-300];
 """
 
 # Accelerate (prefilter):
@@ -75,8 +75,8 @@ leaf[break=2;eval<=-300];
 # Keep conservative to avoid false negatives; tune for your engine’s eval bias.
 puzzle-accelerate = """
 gate=AND;
-leaf[break=1;nodes>=2000000];
-leaf[break=2;nodes>=2000000];
+leaf[break=1;;nodes>=2000000];
+leaf[break=2;null=false;nodes>=2000000];
 leaf[gate=OR;eval<300;leaf[break=2;eval>0]];
 leaf[gate=OR;eval<0;leaf[break=2;eval>-300]];
 """

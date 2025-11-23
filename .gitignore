@@ -5,3 +5,7 @@ session/*
 # Calculation results
 dump/*
 !dump/.gitkeep
+
+# Build artifacts
+out/
+ucicli.jar

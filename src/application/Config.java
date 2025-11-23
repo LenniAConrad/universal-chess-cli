@@ -600,6 +600,12 @@ public final class Config {
                 .addLeaf(Filter.builder().gate(Gate.OR).addLeaf(winning).addLeaf(drawing).build()).build();
     }
 
+    /**
+     * Used for simple manual verification of configuration parsing and defaults.
+     * Prints resolved configuration values to standard output.
+     *
+     * @param args unused command-line arguments
+     */
     public static void main(String[] args) {
         System.out.println("Protocol path: " + Config.getProtocolPath());
         System.out.println("Max nodes: " + Config.getMaxNodes());

@@ -385,21 +385,21 @@ public final class Argv {
      * @return the value token
      * @throws IllegalArgumentException if a value is missing
      */
-    private String expectValueAfter(int keyIndex, String keyLabel) {
-        int valIdx = nextIndex(keyIndex);
-        if (valIdx >= tokens.size()) {
-            error("Option %s expects a value", keyLabel);
-        }
-        String v = tokens.get(valIdx);
-        if (v == null || "--".equals(v)) {
-            error("Option %s expects a value", keyLabel);
-        }
-        tokens.set(valIdx, null);
-        if (i <= valIdx) {
-            i = valIdx + 1;
-        }
-        return v;
-    }
+	private String expectValueAfter(int keyIndex, String keyLabel) {
+		int valIdx = nextIndex(keyIndex);
+		if (valIdx >= tokens.size()) {
+			error("Option %s expects a value", keyLabel);
+		}
+		String v = tokens.get(valIdx);
+		if (v == null || "--".equals(v)) {
+			error("Option %s expects a value", keyLabel);
+		}
+		tokens.set(valIdx, null);
+		if (i == valIdx) {
+			advancePointer(valIdx);
+		}
+		return v;
+	}
 
     /**
      * Used for finding the index of the first occurrence of any key alias (or its
@@ -433,16 +433,28 @@ public final class Argv {
      *
      * @param idx the index to consume
      */
-    private void consumeAt(int idx) {
-        String tok = tokens.get(idx);
-        tokens.set(idx, null);
-        if (i <= idx) {
-            i = idx + 1;
-        }
-        if ("--".equals(tok)) {
-            posStart = idx;
-        }
-    }
+	private void consumeAt(int idx) {
+		String tok = tokens.get(idx);
+		tokens.set(idx, null);
+		if ("--".equals(tok)) {
+			posStart = idx;
+		}
+		if (idx == i) {
+			advancePointer(idx);
+		}
+	}
+
+	/**
+	 * Used for skipping null tokens to keep the cursor on the next candidate.
+	 *
+	 * @param idx index that was just consumed
+	 */
+	private void advancePointer(int idx) {
+		i = idx + 1;
+		while (i < tokens.size() && tokens.get(i) == null) {
+			i++;
+		}
+	}
 
     /**
      * Used for computing the next non-null token index after a given index.

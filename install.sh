@@ -12,6 +12,7 @@ REPO_NAME="universal-chess-cli"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 APP_HOME="$(cd -- "$SCRIPT_DIR" && pwd)"
 OUT_DIR="$APP_HOME/out"
+JAR_PATH="$APP_HOME/ucicli.jar"
 LAUNCHER="/usr/local/bin/$APP_NAME"
 
 SUDO=''
@@ -107,6 +108,9 @@ mkdir -p "$OUT_DIR" "$APP_HOME/dump" "$APP_HOME/session"
 echo "Compiling sources (pure javac)..."
 find "$APP_HOME/src" -name "*.java" -print0 | xargs -0 javac -d "$OUT_DIR"
 
+echo "Packaging runnable jar..."
+jar --create --file "$JAR_PATH" --main-class application.Main -C "$OUT_DIR" .
+
 echo "Installing launcher to $LAUNCHER ..."
 LAUNCHER_TMP="$(mktemp)"
 cat > "$LAUNCHER_TMP" <<EOF
@@ -115,7 +119,7 @@ set -euo pipefail
 APP_HOME="$APP_HOME"
 JAVA_BIN="\${JAVA_BIN:-java}"
 cd "\$APP_HOME"
-exec "\$JAVA_BIN" -cp "\$APP_HOME/out" application.Main "\$@"
+exec "\$JAVA_BIN" -jar "\$APP_HOME/ucicli.jar" "\$@"
 EOF
 
 $SUDO mv "$LAUNCHER_TMP" "$LAUNCHER"
@@ -136,7 +140,8 @@ echo
 echo "Examples:"
 echo "  $APP_NAME help"
 echo "  $APP_NAME print --fen \"startpos\""
-echo "  $APP_NAME convert -i data/input.record -o dump/output.plain --sidelines"
+echo "  $APP_NAME record-to-plain -i data/input.record -o dump/output.plain --sidelines"
+echo "  $APP_NAME record-to-csv -i data/input.record -o dump/output.csv"
 echo "  $APP_NAME mine -i data/seeds.pgn -o dump/ --engine-instances 4 --max-duration 60s"
 echo
 echo "Tip: You can run from anywhere using '$APP_NAME'."

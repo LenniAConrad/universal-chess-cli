@@ -90,6 +90,12 @@ public class Output {
 	private static final int F_CHANCES = 1 << 10;
 
 	/**
+	 * Used for marking presence of an upper/lower bound flag in this output’s
+	 * bitmask.
+	 */
+	private static final int F_BOUND = 1 << 11;
+
+	/**
 	 * Used for tracking which optional fields are present (replaces many booleans).
 	 */
 	private int flags;
@@ -146,6 +152,17 @@ public class Output {
 	private Evaluation evaluation;
 
 	/**
+	 * Used for storing whether the evaluation is an exact score or a bound.
+	 */
+	public enum Bound {
+		NONE,
+		LOWER,
+		UPPER
+	}
+
+	private Bound bound = Bound.NONE;
+
+	/**
 	 * Used for storing the {@code Chances} of the current {@code Output}.
 	 */
 	private Chances chances;
@@ -178,6 +195,7 @@ public class Output {
 		this.moves = (other.moves == null) ? null : Arrays.copyOf(other.moves, other.moves.length);
 		this.evaluation = (other.evaluation == null) ? null : new Evaluation(other.evaluation);
 		this.chances = (other.chances == null) ? null : new Chances(other.chances);
+		this.bound = other.bound;
 	}
 
 	/**
@@ -236,8 +254,16 @@ public class Output {
 	private int dispatchToken(String input, String tok, int from, int end) {
 		final String key = tok.toLowerCase(java.util.Locale.ROOT);
 		switch (key) {
-			case "bestmove", "upperbound", "lowerbound":
+			case "bestmove":
 				return -1;
+			case "upperbound":
+				bound = Bound.UPPER;
+				setFlag(F_BOUND);
+				return from;
+			case "lowerbound":
+				bound = Bound.LOWER;
+				setFlag(F_BOUND);
+				return from;
 			case "depth":
 				return readShortInto(input, from, end, v -> {
 					depth = v;
@@ -725,6 +751,16 @@ public class Output {
 	}
 
 	/**
+	 * Used for retrieving whether the current evaluation is exact, a lower bound,
+	 * or an upper bound.
+	 *
+	 * @return the {@link Bound} parsed from the UCI output line
+	 */
+	public Bound getBound() {
+		return bound;
+	}
+
+	/**
 	 * Used for retrieving the {@code Chances} of the current {@code Output}.
 	 *
 	 * @return the {@code Chances} of the current {@code Output}
@@ -767,6 +803,9 @@ public class Output {
 					.append(chances.getWinChance()).append(' ')
 					.append(chances.getDrawChance()).append(' ')
 					.append(chances.getLossChance());
+		}
+		if (isSet(F_BOUND) && bound != Bound.NONE) {
+			sb.append(' ').append(bound == Bound.LOWER ? "lowerbound" : "upperbound");
 		}
 
 		appendOption(sb, isSet(F_NODES), " nodes ", nodes);

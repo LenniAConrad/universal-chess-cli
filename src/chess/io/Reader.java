@@ -5,12 +5,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.stream.Stream;
 
 import chess.core.Position;
+import chess.model.Game;
 import chess.model.Record;
+import chess.misc.Pgn;
 import utility.Json;
 
 /**
@@ -79,6 +82,70 @@ public final class Reader {
   }
 
   /**
+   * Reads a text file where each non-empty line may contain one or two FENs.
+   * <ul>
+   * <li>If exactly one FEN is found on a line, it becomes the position and the
+   * parent is left unset.</li>
+   * <li>If two or more FENs are found on a line, the first is treated as the
+   * parent and the second as the position.</li>
+   * </ul>
+   * Lines starting with {@code #} or {@code //} are ignored as comments.
+   *
+   * @param path text file with FENs
+   * @return records with position and optional parent
+   * @throws IOException on read errors
+   */
+  public static List<Record> readPositionRecords(Path path) throws IOException {
+    if (path == null || !Files.exists(path)) {
+      return List.of();
+    }
+
+    List<Record> records = new ArrayList<>();
+    try (Stream<String> lines = Files.lines(path)) {
+      lines.map(String::trim)
+          .filter(s -> !s.isEmpty())
+          .filter(s -> !(s.startsWith("#") || s.startsWith("//")))
+          .forEach(line -> {
+            List<String> fens = extractFens(line);
+            if (fens.isEmpty()) {
+              return;
+            }
+            try {
+              if (fens.size() == 1) {
+                Position pos = new Position(fens.get(0));
+                records.add(new Record().withPosition(pos));
+              } else {
+                Position parent = new Position(fens.get(0));
+                Position pos = new Position(fens.get(1));
+                records.add(new Record().withParent(parent).withPosition(pos));
+              }
+            } catch (IllegalArgumentException ignored) {
+              // skip malformed fen sequences on this line
+            }
+          });
+    }
+    return records;
+  }
+
+  private static List<String> extractFens(String line) {
+    if (line == null || line.isEmpty()) {
+      return List.of();
+    }
+    String[] tokens = line.split("\\s+");
+    List<String> fens = new ArrayList<>();
+    for (int i = 0; i <= tokens.length - 6; i++) {
+      String fen = String.join(" ", Arrays.copyOfRange(tokens, i, i + 6));
+      try {
+        new Position(fen);
+        fens.add(fen);
+      } catch (IllegalArgumentException ignored) {
+        // not a fen starting at this token window
+      }
+    }
+    return fens;
+  }
+
+  /**
    * Reads a FEN file (see {@link #readFenList(Path)}) and returns a stack-like deque.
    * By default, the "top" of the stack is the **first line** from the file, so a
    * {@code pop()} gives you the earliest task first. You can still {@code push(...)}
@@ -108,6 +175,17 @@ public final class Reader {
       }
     }
     return positions;
+  }
+
+  /**
+   * Reads one or more PGN games from the given file.
+   *
+   * @param path PGN file path
+   * @return parsed games (possibly empty)
+   * @throws IOException if reading fails
+   */
+  public static List<Game> readPgn(Path path) throws IOException {
+    return Pgn.read(path);
   }
   
 }

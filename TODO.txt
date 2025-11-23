@@ -1,3 +1,2 @@
-Add tags to Tagging.java
-Implement Game.java (PGN)
-Implement a PGN reader
+Add image generation
+Add puzzles to pgn

@@ -637,7 +637,7 @@ public final class Filter {
         public Builder withEvaluation(ComparisonOperator op, Evaluation target) {
             Objects.requireNonNull(op, "eval op");
             attributePredicates
-                    .add(o -> o != null && o.getEvaluation() != null && compareEval(o.getEvaluation(), op, target));
+                    .add(o -> evalMatchesWithBound(o, op, target));
             // Choose a stable/compact string representation for Evaluation:
             String ev = (target == null) ? DslLiterals.NULL_LITERAL : target.toString();
             predicateSpecs.add(new PredicateSpec(PredicateSpec.Kind.EVAL, op, ev));
@@ -719,6 +719,33 @@ public final class Filter {
                 case LESS_EQUAL -> e.isLessEqual(t);
                 case LESS -> e.isLess(t);
             };
+        }
+
+        /**
+         * Used for comparing an {@link Evaluation} while respecting bound hints from
+         * the engine. Lower bounds only satisfy {@code >}/{@code >=}, upper bounds only
+         * satisfy {@code <}/{@code <=}, and exact scores are required for equality.
+         */
+        private static boolean evalMatchesWithBound(Output o, ComparisonOperator op, Evaluation target) {
+            if (o == null) {
+                return false;
+            }
+            Evaluation e = o.getEvaluation();
+            if (e == null) {
+                return false;
+            }
+            Output.Bound b = o.getBound();
+            // Reject comparisons that would turn a one-sided bound into a misleading pass.
+            if (b == Output.Bound.LOWER && (op == ComparisonOperator.LESS || op == ComparisonOperator.LESS_EQUAL || op == ComparisonOperator.EQUAL)) {
+                return false;
+            }
+            if (b == Output.Bound.UPPER && (op == ComparisonOperator.GREATER || op == ComparisonOperator.GREATER_EQUAL || op == ComparisonOperator.EQUAL)) {
+                return false;
+            }
+            if (b != Output.Bound.NONE && op == ComparisonOperator.EQUAL) {
+                return false;
+            }
+            return compareEval(e, op, target);
         }
 
         /**

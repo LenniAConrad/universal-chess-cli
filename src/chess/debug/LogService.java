@@ -1,7 +1,6 @@
 package chess.debug;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -45,8 +44,8 @@ public final class LogService {
 	static {
 		FileHandler handler = null;
 		try {
-			Path logDir = Paths.get("session");
-			Files.createDirectories(logDir);
+			Path logDir = SessionCache.directory();
+			SessionCache.ensureDirectory();
 
 			Path logFile = logDir.resolve(System.currentTimeMillis() + ".log");
 			handler = new FileHandler(logFile.toString(), true);

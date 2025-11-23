@@ -12,9 +12,14 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicLong;
 
+import chess.core.Move;
+import chess.core.Position;
+import chess.core.SAN;
 import utility.Json;
 import chess.model.Record;
+import chess.uci.Evaluation;
 import chess.uci.Filter;
+import chess.uci.Output;
 import chess.model.Plain;
 import chess.debug.LogService;
 
@@ -119,6 +124,107 @@ public class Converter {
     }
 
     /**
+     * Used for stream-converting a JSON array file of records into one CSV file
+     * with a column per requested PV.
+     *
+     * <p>
+     * Always writes a header. PV columns are sized to the maximum principal
+     * variation count observed across records that pass the filter. Each PV adds
+     * three columns: evaluation, best move in SAN, and the UCI PV line.
+     * </p>
+     *
+     * @param arguments  optional filter; {@code null} = emit all.
+     * @param recordFile input JSON (array) path.
+     * @param csvFile    output {@code .csv} path; if {@code null}, derived from
+     *                   {@code recordFile}.
+     * @throws IllegalArgumentException if {@code recordFile} is {@code null}.
+     */
+    public static void recordToCsv(Filter arguments, Path recordFile, Path csvFile) {
+        if (recordFile == null) {
+            throw new IllegalArgumentException("recordfile is null");
+        }
+        if (csvFile == null) {
+            csvFile = deriveOutputPath(recordFile, ".csv");
+        }
+
+        final Path tmp = csvFile.resolveSibling(csvFile.getFileName().toString() + ".tmp");
+        final AtomicLong ok = new AtomicLong();
+        final AtomicLong bad = new AtomicLong();
+
+        LogService.info(String.format(
+                "Converting records to CSV '%s' to '%s'.",
+                recordFile, csvFile));
+
+        final int maxPv;
+        try {
+            maxPv = computeMaxPivot(arguments, recordFile);
+        } catch (Exception e) {
+            cleanupTempQuietly(tmp);
+            LogService.error(
+                    e,
+                    String.format(
+                            "Failed to scan input before CSV conversion '%s' to '%s'.",
+                            recordFile, csvFile));
+            return;
+        }
+
+        if (maxPv == 0) {
+            LogService.info(String.format(
+                    "CSV conversion found no eligible records in '%s'; skipping output '%s'.",
+                    recordFile, csvFile));
+            return;
+        }
+
+        try (BufferedWriter out = openWriter(tmp)) {
+            writeCsvHeader(out, maxPv);
+            Json.streamTopLevelObjects(
+                    recordFile,
+                    objJson -> processRecordCsv(arguments, objJson, maxPv, out, ok, bad));
+        } catch (Exception e) {
+            cleanupTempQuietly(tmp);
+            LogService.error(
+                    e,
+                    String.format(
+                            "I/O error during record to CSV conversion '%s' to '%s'.",
+                            recordFile, csvFile));
+            return;
+        }
+
+        try {
+            if (ok.get() == 0L || Files.size(tmp) == 0L) {
+                cleanupTempQuietly(tmp);
+                LogService.info(String.format(
+                        "No CSV rows emitted; not overwriting existing output '%s' to '%s'.",
+                        recordFile, csvFile));
+                return;
+            }
+        } catch (IOException e) {
+            cleanupTempQuietly(tmp);
+            LogService.error(
+                    e,
+                    "Failed to stat temp file before finalizing",
+                    String.format("Temp: %s", tmp));
+            return;
+        }
+
+        try {
+            finalizeOutput(tmp, csvFile);
+        } catch (IOException e) {
+            cleanupTempQuietly(tmp);
+            LogService.error(
+                    e,
+                    String.format(
+                            "Failed to move temp file into place during record to CSV conversion '%s' to '%s'.",
+                            recordFile, csvFile));
+            return;
+        }
+
+        LogService.info(String.format(
+                "Completed record to CSV conversion '%s' to '%s' and wrote %d records while skipping %d invalid records.",
+                recordFile, csvFile, ok.get(), bad.get()));
+    }
+
+    /**
      * Opens a UTF-8 {@link BufferedWriter} for {@code tmp} with
      * CREATE/TRUNCATE/WRITE, creating parent directories as needed.
      *
@@ -148,6 +254,51 @@ public class Converter {
         final Path parent = p.getParent();
         if (parent != null)
             Files.createDirectories(parent);
+    }
+
+    /**
+     * Used for scanning the input once to determine the maximum PV count for CSV
+     * header sizing. Applies the same filter as the actual export.
+     *
+     * @param arguments optional filter; {@code null} = accept all
+     * @param recordFile input JSON (array) path
+     * @return maximum PV index observed across accepted records
+     * @throws IOException if streaming fails
+     */
+    private static int computeMaxPivot(Filter arguments, Path recordFile) throws IOException {
+        final int[] maxPv = new int[1];
+        Json.streamTopLevelObjects(recordFile, objJson -> {
+            try {
+                Record r = Record.fromJson(objJson);
+                if (arguments != null && !arguments.apply(r.getAnalysis())) {
+                    return;
+                }
+                int pivots = r.getAnalysis().getPivots();
+                maxPv[0] = Math.max(maxPv[0], Math.max(1, pivots));
+            } catch (IllegalArgumentException ignore) {
+                // Skip invalid records in the sizing pass
+            }
+        });
+        return maxPv[0];
+    }
+
+    /**
+     * Writes the CSV header with base fields plus PV-specific columns.
+     *
+     * @param out   destination writer
+     * @param maxPv maximum PV count to include
+     * @throws IOException if writing fails
+     */
+    private static void writeCsvHeader(BufferedWriter out, int maxPv) throws IOException {
+        StringBuilder sb = new StringBuilder(64 + maxPv * 32);
+        sb.append("created,engine,parent,position,description,tags");
+        for (int pv = 1; pv <= maxPv; pv++) {
+            sb.append(",eval_pv").append(pv)
+                    .append(",bestmove_pv").append(pv).append("_san")
+                    .append(",pv").append(pv).append("_uci");
+        }
+        sb.append(System.lineSeparator());
+        out.write(sb.toString());
     }
 
     /**
@@ -183,6 +334,38 @@ public class Converter {
     }
 
     /**
+     * Parses one JSON object into a Record and, if accepted by {@code arguments},
+     * writes its CSV row. Updates {@code ok}/{@code bad} counters.
+     *
+     * @param arguments optional filter; {@code null} = accept all
+     * @param objJson   JSON text of a single object
+     * @param maxPv     column count for PVs
+     * @param out       destination writer
+     * @param ok        counter for successful writes
+     * @param bad       counter for invalid/rejected records
+     * @throws UncheckedIOException on write errors
+     */
+    private static void processRecordCsv(
+            Filter arguments,
+            String objJson,
+            int maxPv,
+            BufferedWriter out,
+            AtomicLong ok,
+            AtomicLong bad) {
+        try {
+            Record r = Record.fromJson(objJson);
+            if (arguments == null || arguments.apply(r.getAnalysis())) {
+                writeCsvRow(out, r, maxPv);
+                ok.incrementAndGet();
+            }
+        } catch (IllegalArgumentException ex) {
+            bad.incrementAndGet();
+        } catch (IOException io) {
+            throw new UncheckedIOException(io);
+        }
+    }
+
+    /**
      * Used for writing a single Plain block to the writer.
      *
      * @param out   writer to write to
@@ -196,6 +379,145 @@ public class Converter {
         }
         out.write(block);
         return true;
+    }
+
+    /**
+     * Writes one CSV row for the given record, emitting empty cells for missing PV
+     * data.
+     *
+     * @param out   destination writer
+     * @param r     record to serialize
+     * @param maxPv number of PV columns in the header
+     * @throws IOException if writing fails
+     */
+    private static void writeCsvRow(BufferedWriter out, Record r, int maxPv) throws IOException {
+        StringBuilder sb = new StringBuilder(128 + maxPv * 48);
+        sb.append(r.getCreated()).append(',')
+                .append(csv(r.getEngine())).append(',')
+                .append(csv(toFen(r.getParent()))).append(',')
+                .append(csv(toFen(r.getPosition()))).append(',')
+                .append(csv(r.getDescription())).append(',')
+                .append(csv(joinTags(r.getTags())));
+
+        for (int pv = 1; pv <= maxPv; pv++) {
+            Output best = r.getAnalysis().getBestOutput(pv);
+            sb.append(',').append(csv(formatEvaluation(best)));
+            sb.append(',').append(csv(formatBestMoveSan(r.getPosition(), r.getAnalysis().getBestMove(pv))));
+            sb.append(',').append(csv(formatPvMoves(best)));
+        }
+
+        sb.append(System.lineSeparator());
+        out.write(sb.toString());
+    }
+
+    /**
+     * Formats the evaluation of an {@link Output} for CSV.
+     *
+     * @param best output to inspect
+     * @return evaluation string ({@code #N} for mate, centipawns otherwise) or
+     *         empty
+     */
+    private static String formatEvaluation(Output best) {
+        if (best == null) {
+            return "";
+        }
+        Evaluation eval = best.getEvaluation();
+        if (eval == null || !eval.isValid()) {
+            return "";
+        }
+        if (eval.isMate()) {
+            return "#" + eval.getValue();
+        }
+        return Integer.toString(eval.getValue());
+    }
+
+    /**
+     * Formats the best move for a PV as SAN, falling back to UCI if SAN generation
+     * fails.
+     *
+     * @param pos  source position
+     * @param best output providing PV moves
+     * @return SAN move or UCI fallback; empty if unavailable
+     */
+    private static String formatBestMoveSan(Position pos, short best) {
+        if (pos == null || best == Move.NO_MOVE) {
+            return "";
+        }
+        try {
+            return SAN.toAlgebraic(pos, best);
+        } catch (RuntimeException ex) {
+            return Move.toString(best);
+        }
+    }
+
+    /**
+     * Formats the PV move list as space-separated UCI.
+     *
+     * @param best output to inspect
+     * @return PV string or empty if none
+     */
+    private static String formatPvMoves(Output best) {
+        if (best == null) {
+            return "";
+        }
+        short[] moves = best.getMoves();
+        if (moves == null || moves.length == 0) {
+            return "";
+        }
+        StringBuilder pv = new StringBuilder(moves.length * 5);
+        boolean first = true;
+        for (short move : moves) {
+            if (move == Move.NO_MOVE) {
+                continue;
+            }
+            if (!first) {
+                pv.append(' ');
+            }
+            pv.append(Move.toString(move));
+            first = false;
+        }
+        return pv.toString();
+    }
+
+    /**
+     * Escapes a value for safe CSV emission using RFC 4180 quoting rules.
+     *
+     * @param value string to escape
+     * @return escaped value (possibly quoted); never {@code null}
+     */
+    private static String csv(String value) {
+        if (value == null) {
+            return "";
+        }
+        boolean needsQuote = value.indexOf(',') >= 0
+                || value.indexOf('"') >= 0
+                || value.indexOf('\n') >= 0
+                || value.indexOf('\r') >= 0;
+        String escaped = value.replace("\"", "\"\"");
+        return needsQuote ? "\"" + escaped + "\"" : escaped;
+    }
+
+    /**
+     * Joins tags for CSV output.
+     *
+     * @param tags tag array (may be null or empty)
+     * @return semicolon-joined tags or empty
+     */
+    private static String joinTags(String[] tags) {
+        if (tags == null || tags.length == 0) {
+            return "";
+        }
+        return String.join(";", tags);
+    }
+
+    /**
+     * Returns the FEN string or empty if position is null.
+     *
+     * @param p position to convert
+     * @return FEN or empty
+     */
+    private static String toFen(Position p) {
+        return p == null ? "" : p.toString();
     }
 
     /**
