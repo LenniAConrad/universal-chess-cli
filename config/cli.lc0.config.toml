@@ -1,0 +1,54 @@
+# ENGINE PROTOCOL
+# Point to the lc0 UCI protocol file (uses cudnn backend on RTX 4090).
+protocol-path = "config/lc0.engine.toml"
+
+# OUTPUT DIRECTORY
+output = "dump/"
+
+# ENGINE INSTANCES
+# GPU-constrained; one lc0 process saturates a 4090.
+engine-instances = 1
+
+# SEARCH LIMITS (per evaluated position)
+# RTX 4090 with a modern net → roughly 100–160k visits/s at MultiPV=2.
+# 12M visits caps each position near 60–120s; 3m wall clock safety net.
+max-nodes = 12_000_000
+max-duration = 180_000
+
+# PUZZLE FILTERS (Arguments DSL)
+# lc0 evals are compressed around 0.0, so centipawn thresholds are softer
+# than the Stockfish defaults. Nodes ~6M per PV gives stable NN depth.
+
+# Quality gate:
+# Require ≥ 6M nodes (visits) on both PV1 and PV2.
+puzzle-quality = """
+gate=AND;null=false;empty=false;
+leaf[gate=AND;break=1;nodes>=6000000];
+leaf[gate=AND;break=2;null=false;empty=false;nodes>=6000000];
+"""
+
+# Winning puzzle:
+# PV1 clearly better (≥ +150 cp) AND PV2 not competitive (≤ −50 cp).
+puzzle-winning = """
+gate=AND;
+leaf[eval>=150];
+leaf[break=2;null=false;eval<=-50];
+"""
+
+# Drawing puzzle:
+# PV1 holds (≥ −50 cp) while PV2 collapses (≤ −150 cp).
+puzzle-drawing = """
+gate=AND;
+leaf[eval>=-50];
+leaf[break=2;null=false;eval<=-150];
+"""
+
+# Accelerate (prefilter):
+# Cheap early reject: ≥1.2M nodes on PV1/2 plus relaxed eval checks.
+puzzle-accelerate = """
+gate=AND;
+leaf[break=1;nodes>=1200000];
+leaf[break=2;null=false;nodes>=1200000];
+leaf[gate=OR;eval<140;leaf[break=2;eval>20]];
+leaf[gate=OR;eval<-20;leaf[break=2;eval>-140]];
+"""

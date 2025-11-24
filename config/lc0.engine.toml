@@ -1,0 +1,36 @@
+#
+# Chess-Engine UCI Protocol configuration for 'Leela Chess Zero'
+# Tuned for an RTX 4090 running the cudnn backend.
+#
+
+# %d → integer      %s → string      %b → boolean
+# Can only ever contain up to one %d, %s or %b
+
+path                  = "lc0"                                     # Engine executable name or absolute path.
+name                  = "Leela Chess Zero"                        # Friendly engine name.
+settings              = "RTX4090 + cudnn backend; cache=4096MB; multipv=2; threads=4"
+isready               = "isready"
+readyok               = "readyok"
+searchDepth           = "go depth %d"
+searchNodes           = "go nodes %d"
+searchTime            = "go movetime %d"
+setPosition           = "position fen %s"
+stop                  = "stop"
+newGame               = "ucinewgame"
+setChess960           = "setoption name UCI_Chess960 value %b"
+setHashSize           = "setoption name Cache value %d"           # LCZero cache (MB) instead of Stockfish Hash.
+setMultiPivotAmount   = "setoption name MultiPV value %d"
+setThreadAmount       = "setoption name Threads value %d"         # Helper CPU threads; GPU work stays on the card.
+showUci               = "uci"
+showWinDrawLoss       = "setoption name UCI_ShowWDL value %b"
+
+# The inputs that will be fed into the Engine once it is ready (Optional)
+setup = [
+   "setoption name Backend value cudnn",          # Use GPU acceleration.
+   "setoption name Threads value 4",              # CPU helpers; adjust to your host CPU.
+   "setoption name Cache value 4096",             # MB; raise if you have RAM to spare.
+   "setoption name MultiPV value 2",              # Needed for puzzle mining.
+   "setoption name UCI_ShowWDL value true"        # Keeps WDL visible in UCI output if supported.
+   # Add your network if lc0 is not picking up the default:
+   # "setoption name WeightsFile value /path/to/network.pb.gz",
+]
