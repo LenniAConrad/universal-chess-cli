@@ -1,318 +1,194 @@
 # Universal Chess CLI (ucicli)
 
-Universal Chess CLI is a zero-dependency Java 17 command line toolkit for working with chess engines and curated puzzle data. It can convert Arena-style `.record` files, mine tactical positions by driving a UCI engine (e.g., Stockfish), and pretty-print arbitrary FENs for inspection.
+Universal Chess CLI is a zero-dependency Java 17 toolkit for driving UCI chess engines, mining tactical puzzles, converting Arena `.record` files, and printing FENs without needing a GUI.
 
 ---
 
 ## Highlights
 
-- Pure Java 17 CLI—no external build tooling or runtime dependencies.
-- Drives any UCI-compatible engine via a TOML protocol description (Stockfish template included).
-- Converts `.record` JSON to `.plain` or `.csv` using the bundled converters.
-- Mines single-solution puzzles from random seeds or custom FEN lists, with Chess960 support and a configurable filter DSL.
-  Lines in a FEN list may contain one FEN (position only) or two FENs; when two are present the first is treated as the parent and the second as the position.
-- Prints ASCII boards for any FEN to quickly visualize problem statements without a GUI.
+- Pure Java 17, no build tooling or external libs; entry point is `application.Main`.
+- Talks to any UCI-compatible engine via a TOML description (Stockfish template included).
+- Mines single-solution puzzles from random seeds, PGN files, or custom FEN lists; supports Chess960.
+- Converts `.record` JSON → `.plain` (and optionally CSV) or `.record` JSON → CSV.
+- Pretty-prints any FEN as ASCII for quick inspection.
+- Optional dual-head MLP evaluator (scalar + 8x8 grid) in pure Java; load weights from a single binary.
 
 ---
 
 ## Requirements
 
-- **Java 17+ JDK** (JRE is not enough when building from source).
-- A **UCI chess engine** reachable on `$PATH` or pointed to via `config/default.engine.toml`.
-- (Optional) `config/book.eco.toml` for ECO name lookups when printing or logging.
-
-You may use `install.sh` on Debian/Ubuntu to install OpenJDK 17 and Stockfish automatically.
+- Java 17+ JDK (JRE alone is not enough to build).
+- A UCI engine reachable on `PATH` or configured in `config/default.engine.toml`.
+- Optional: `config/book.eco.toml` for ECO labels when printing/logging.
+- On Debian/Ubuntu, `./install.sh` can install OpenJDK 17 and Stockfish for you.
 
 ---
 
 ## Build & Run
 
-### 1. Compile the sources
+1) Compile:
 
 ```bash
 mkdir -p out
 javac --release 17 -d out $(find src -name "*.java")
 ```
 
-This emits `.class` files under `out/` with `application.Main` as the entry point.
-
-### 2. (Optional) Package a runnable JAR
+2) (Optional) Package a runnable JAR:
 
 ```bash
 jar --create --file ucicli.jar --main-class application.Main -C out .
-```
-
-Run it anywhere:
-
-```bash
 java -jar ucicli.jar help
 ```
 
-### 3. Run directly from classes
+3) Run straight from classes:
 
 ```bash
 java -cp out application.Main help
 java -cp out application.Main <command> [options]
 ```
 
-### 4. Install a launcher (Linux only)
+4) Linux launcher:
 
-Execute `./install.sh` to compile, create `out/`, and place `/usr/local/bin/ucicli`. Afterwards run `ucicli ...` from any directory. The script will prompt before installing dependencies.
+```bash
+./install.sh    # builds, creates out/, installs /usr/local/bin/ucicli
+ucicli help
+```
 
 ---
 
-## Configuration Overview
+## Quick Start
 
-All defaults live in `config/`:
+```bash
+# Build and run in one go (Linux)
+./install.sh
+ucicli print --fen "8/8/8/2k5/2Pp4/1P1K4/8/8 w - - 0 1"
 
-| File                      | Purpose                                                                                         |
-|---------------------------|-------------------------------------------------------------------------------------------------|
-| `config/cli.config.toml`  | Application defaults (engine instances, node/time caps, output directories, filter DSL strings) |
-| `config/default.engine.toml` | Describes how to speak to your UCI engine (path, option commands, go commands, Chess960 toggle, etc.) |
-| `config/book.eco.toml`    | Optional ECO dictionary used when printing or logging                                          |
-
-At runtime the CLI loads `cli.config.toml`. Any CLI flag overrides its counterpart in the file for that invocation. If the file is missing, it will be generated from hard-coded defaults the next time you run the tool.
-
-### `config/cli.config.toml`
-
-| Key                | Controls                                                                                                    | Default value                     | CLI override flag(s)                 |
-|--------------------|-------------------------------------------------------------------------------------------------------------|-----------------------------------|--------------------------------------|
-| `protocol-path`    | Path to the engine protocol TOML that declares UCI commands.                                                | `config/default.engine.toml`      | `--protocol-path`, `-P`              |
-| `output`           | Default root for mined JSON outputs (directory or filename stem).                                          | `dump/`                           | `--output`, `-o` (mine command)      |
-| `engine-instances` | Number of UCI engine processes to launch concurrently.                                                     | `2` (see file)                    | `--engine-instances`, `-e`           |
-| `max-nodes`        | Per-position node cap issued as `go nodes <n>`.                                                            | `50_000_000`                      | `--max-nodes`                        |
-| `max-duration`     | Per-position wall-clock limit (milliseconds) issued as `go movetime <ms>`.                                 | `1_000_000`                       | `--max-duration 60s|2m|60000`        |
-| `puzzle-quality`   | Filter-DSL snippet to ensure minimum analysis depth per PV before accepting a candidate.                   | Require ≥50M nodes in PV1 & PV2   | `--puzzle-quality`                   |
-| `puzzle-winning`   | Filter-DSL forcing PV1 to be winning (e.g., ≥ +300 cp) and PV2 to fail to match.                           | +300 / ≤ 0 centipawns             | `--puzzle-winning`                   |
-| `puzzle-drawing`   | Filter-DSL forcing PV1 to hold equality while PV2 collapses (single drawing resource).                     | ≥ 0 / ≤ −300 centipawns           | `--puzzle-drawing`                   |
-| `puzzle-accelerate`| Cheap pre-filter to reject hopeless nodes quickly before expensive verification.                           | ≥2M nodes + relaxed eval guards   | `--puzzle-accelerate`                |
-
-Tips:
-
-- `output` accepts a directory (`dump/`) or a file-like stem (`results.json` → produces `results.puzzles.json` and `results.nonpuzzles.json`).
-- Durations accept plain milliseconds or Java `Duration` literals (`45s`, `2m`, `500ms`) when provided as CLI flags.
-- Filter DSL syntax matches `chess.uci.Filter` (see `src/application/Config.java` for examples). Override one filter and the verifier is rebuilt using your mix.
-
-Example customization:
-
-```toml
-protocol-path    = "config/my.engine.toml"
-output           = "/data/ucicli/"
-engine-instances = 4
-max-nodes        = 75_000_000
-max-duration     = 90_000
-
-puzzle-winning = """
-gate=AND;
-leaf[eval>=250];
-leaf[break=2;null=false;eval<=-50];
-"""
+# Mine a handful of random puzzles with stock defaults
+java -cp out application.Main mine --random-count 50 --output dump/sample.json
 ```
 
-### `config/default.engine.toml`
+---
 
-This file maps logical engine actions to the exact text commands sent over UCI. Important keys:
+## Commands
 
-| Key                 | Description                                                                                           |
-|---------------------|-------------------------------------------------------------------------------------------------------|
-| `path`              | Executable name or absolute path to your engine (e.g., `"/opt/stockfish/stockfish"`).                 |
-| `settings`          | Free-form string to describe how you configure the engine (optional, informational).                  |
-| `setThreadAmount`   | Command template for setting thread counts (`setoption name Threads value %d`).                       |
-| `setMultiPivotAmount` | Template for `multipv` (must be ≥ 2 when mining puzzles).                                         |
-| `searchNodes`/`searchTime`/`searchDepth` | Templates for `go` commands with `%d` placeholders.                         |
-| `setChess960`       | Template toggling Chess960 (used when `--chess960` is passed).                                        |
-| `setup` array       | Optional list of commands executed once after `uci`/`isready` (set hash size, multipv, nets, etc.).   |
+- **record-to-plain** — Convert `.record` JSON to `.plain`. Options: `--input|-i <file.record>` (required), `--output|-o <file.plain>` (defaults to input stem), `--filter|-f "<dsl>"`, `--sidelines|--export-all|-a`, `--csv` (emit a CSV next to the plain file), `--csv-output|-c <file.csv>`.
+- **record-to-csv** — Convert `.record` JSON straight to CSV. Options: `--input|-i <file.record>` (required), `--output|-o <file.csv>`, `--filter|-f "<dsl>"`.
+- **print** — Pretty-print a FEN. Options: `--fen "<FEN...>"` (or pass it positionally), `--verbose|-v` to show stack traces on parse failures.
+- **mine** — Drive the engine, gate candidates with filters, and emit JSON lines for puzzles/non-puzzles. Accepts FEN lists (`.txt`), PGN files (`.pgn`), or random seeds; supports Chess960 with `--chess960|-9`.
+  - Inputs & outputs: `--input|-i <seeds.txt|games.pgn>` (omit for random), `--output|-o <dir|file>` (directory → timestamped outputs; file-like root ending in `.json`/`.jsonl` → `<stem>.puzzles.json` and `<stem>.nonpuzzles.json`).
+  - Engine & limits: `--protocol-path|-P`, `--engine-instances|-e`, `--max-nodes <n>`, `--max-duration <dur>`.
+  - Random generation & bounds: `--random-count <n>` (default 100), `--random-infinite`, `--max-waves <n>` (default 100), `--max-frontier <n>` (default 5_000), `--max-total <n>` (default 500_000).
+  - Gates (Filter DSL): `--puzzle-quality`, `--puzzle-winning`, `--puzzle-drawing`, `--puzzle-accelerate`.
+- **clean** — Remove files under `session/` (logs/cache). Option: `--verbose|-v`.
+- **help** — Print CLI usage.
 
-If you install a custom engine, duplicate this file (e.g., `config/dragon.engine.toml`), change `path`, update `setup` commands, and point `protocol-path` at it.
+---
+
+## Configuration
+
+Defaults live in `config/`. The CLI loads `config/cli.config.toml` on startup; missing keys fall back to the hard-coded defaults in `application.Config` and any absent file is auto-generated.
+
+- `config/cli.config.toml` (shipped values): protocol path `config/default.engine.toml`, output root `dump/`, engine instances `4`, `max-nodes` `50_000_000`, `max-duration` `1_000_000` ms, plus default filter DSL strings. If the file is missing, a fresh one is created with the internal defaults (1 engine, 100_000_000 nodes, 60_000 ms).
+- `config/default.engine.toml`: UCI command templates for your engine—binary path, `setoption` templates (threads, multipv, Chess960), `go` command formats, and optional `setup` commands to run after `uci/isready`.
+- `config/book.eco.toml`: Optional ECO dictionary used when printing/logging.
+
+Notes:
+
+- CLI flags always override TOML for a single run.
+- `--output` accepts a directory (`dump/`) or a file-like root (`results.json` → `results.puzzles.json`, `results.nonpuzzles.json`).
+- Durations accept milliseconds or Java `Duration` strings (`45s`, `2m`, `500ms`).
+- Chess960 toggling is driven by `--chess960`/`-9` and the `setChess960` template in the engine protocol file.
+
+---
+
+## Concepts & Gotchas
+
+- Seeds: A FEN list line may hold one FEN (position only) or two FENs; if two, the first is the parent and the second is the position. Extra tokens after two FENs are ignored once both are parsed.
+- PGN input: Mainlines and all variations become seeds (parent/child links preserved) so tactical side-branches are explored too.
+- Puzzle acceptance: Mining uses an accelerate prefilter, then a quality gate, then a winning/drawing gate combined via `Config.buildPuzzleVerify` (quality AND (win OR draw)).
+- Random mining: Without `--input`, seeds are generated randomly; `--chess960` switches the generator and sends the Chess960 toggle defined in your engine protocol TOML.
+- Outputs: When `--output` points to a directory, filenames are timestamped and prefixed with `standard-` or `chess960-`; when `--output` looks like a file, sibling `<stem>.puzzles.json` and `<stem>.nonpuzzles.json` are written in that directory.
+- Logs: `session/` contains structured logs from `chess.debug.LogService`; `clean` removes files but keeps the directory.
 
 ---
 
 ## Filter DSL
 
-The `mine` command evaluates every analyzed position with small Boolean programs written in a compact DSL (used by `puzzle-quality`, `puzzle-winning`, `puzzle-drawing`, and `puzzle-accelerate`). A DSL string is a list of `;`-separated tokens:
+Filters are compact Boolean programs used by `mine` (quality, winning, drawing, accelerate). Syntax:
 
+- Blocks combine predicates/leaves with `gate=<AND|OR|NOT_AND|NOT_OR|XOR|X_NOT_OR|SAME|NOT_SAME>`.
+- `break=<n>` selects which MultiPV line the block inspects (1 = best, 2 = second, etc.).
+- `null=<true|false>` and `empty=<true|false>` control return values when data is missing or the block has no predicates.
+- Predicates use `<metric><op><value>` with `> >= = <= <`. Metrics: `nodes`, `nps`, `tbhits`, `time` (ms), `depth`, `seldepth`, `multipv`, `hashfull` (0..1000), `eval` (cp or `#-2`), `chances` (`wdl 790 200 10`, `79 20 1`, or `1000/0/0`).
+- `leaf[ ... ]` nests another block that is combined with the parent via the parent gate.
+- Whitespace is ignored; TOML triple quotes let you split strings across lines.
+
+Example (quality gate from the shipped config):
+
+```txt
+gate=AND;null=false;empty=false;
+leaf[gate=AND;break=1;nodes>=50000000];
+leaf[gate=AND;break=2;null=false;empty=false;nodes>=50000000];
 ```
-gate=AND;null=false;empty=false;break=1;nodes>=50000000;
-leaf[gate=AND;break=2;eval<=0]
-```
-
-Tokens and meaning (order does not matter; `;` separates tokens):
-
-- `gate=<AND|OR|NOT_AND|NOT_OR|XOR|X_NOT_OR|SAME|NOT_SAME>`: how to combine all predicates and child leaves in this block.
-- `null=<true|false>`: return value when the selected PV is missing/invalid. Defaults to `false`.
-- `empty=<true|false>`: return value when a block has no predicates or leaves. Defaults to `false`.
-- `break=<n>`: which MultiPV line this block inspects (1 = best PV, 2 = second-best, etc.). If omitted and predicates exist, PV#1 is used.
-- Comparison predicates use `<metric><op><value>` with ops `> >= = <= <`:
-  - `nodes`, `nps`, `tbhits`, `time` (ms), `depth`, `seldepth`, `multipv`, `hashfull` (0..1000).
-  - `eval`: centipawns or mate, e.g., `300` or `#-2` (mate in 2 for the opponent).
-  - `chances`: win/draw/loss triple; accepts `wdl 790 200 10`, `79 20 1`, or `1000/0/0` and normalizes to 0..1000 scale.
-- `leaf[ ... ]`: nested block evaluated separately; its result is combined with the parent via the parent’s `gate`.
-- `predicates=<n>`: informational only (emitted when serializing); it is ignored while parsing.
-- Whitespace is ignored; TOML triple quotes let you split the string across lines.
 
 ---
 
-## Commands & Flags
+## Troubleshooting
 
-General form:
-
-```bash
-java -cp out application.Main <command> [options]
-ucicli <command> [options]                # when install.sh is used
-```
-
-### Shared flags
-
-| Flag                            | Meaning                                                                 | Default source           |
-|---------------------------------|-------------------------------------------------------------------------|--------------------------|
-| `--protocol-path`, `-P`         | Override engine protocol TOML path.                                     | `config/cli.config.toml` |
-| `--engine-instances`, `-e`      | Override the number of engine workers to spin up.                       | config                   |
-| `--max-nodes <n>`               | Override per-position node cap.                                         | config                   |
-| `--max-duration <dur>`          | Override per-position time cap (`60s`, `2m`, `4500ms`, etc.).           | config                   |
-| `--verbose`, `-v`               | Print stack traces for unexpected failures (supported by `print` & `mine`). | off                  |
-
-### `record-to-plain`
-
-Convert `.record` JSON → `.plain` (compact) while optionally filtering or exporting sidelines.
-
-| Flag(s)                               | Description                                                      | Default |
-|---------------------------------------|------------------------------------------------------------------|---------|
-| `--input`, `-i <file.record>`         | Source Arena `.record` JSON (required).                          | —       |
-| `--output`, `-o <file.plain>`         | Output path (defaults to input name with `.plain`).              | derived |
-| `--filter`, `-f "<dsl>"`              | Filter-DSL string to keep only matching records.                 | none    |
-| `--sidelines`, `--export-all`, `-a`   | Include sidelines/secondary variations when exporting.           | off     |
-
-Example:
-
-```bash
-java -cp out application.Main record-to-plain \
-  --input data/training.record \
-  --output dump/training.plain \
-  --sidelines
-```
-
-### `record-to-csv`
-
-Convert `.record` JSON → `.csv` without emitting a `.plain` file. Shares the same filter DSL as `record-to-plain`.
-
-| Flag(s)                       | Description                                                      | Default |
-|-------------------------------|------------------------------------------------------------------|---------|
-| `--input`, `-i <file.record>` | Source Arena `.record` JSON (required).                          | —       |
-| `--output`, `-o <file.csv>`   | Output path (defaults to input name with `.csv`).                | derived |
-| `--filter`, `-f "<dsl>"`      | Filter-DSL string to keep only matching records.                 | none    |
-
-Example:
-
-```bash
-java -cp out application.Main record-to-csv \
-  --input data/training.record \
-  --output dump/training.csv
-```
-
-### `print`
-
-Pretty-print any FEN as ASCII for quick inspection.
-
-| Flag(s)          | Description                                                |
-|------------------|------------------------------------------------------------|
-| `--fen "<FEN>"`  | Complete FEN string. You may also pass it positionally.    |
-| `--verbose`, `-v`| Emit stack traces if the FEN cannot be parsed.             |
-
-```bash
-java -cp out application.Main print --fen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-```
-
-### `mine`
-
-Drive the engine over seeds, enforce puzzle filters, and export JSON lines for both puzzles and rejects. When no `--input` is provided the CLI generates random legal positions (Chess960-aware with `--chess960`).
-
-**Input & output**
-
-| Flag(s)                         | Description                                                                                     | Default           |
-|---------------------------------|-------------------------------------------------------------------------------------------------|-------------------|
-| `--input`, `-i <fen-list.txt>`  | UTF-8 text file with one FEN per line (comments allowed with `#`/`//`).                         | Random seeds      |
-| `--output`, `-o <dir|file>`     | Directory or file stem for JSON outputs (see `output` config).                                  | `dump/`           |
-| `--chess960`, `-9`              | Treat seeds/random positions as Chess960 positions.                                             | off               |
-
-**Random generation & limits**
-
-| Flag                     | Description                                                                                   | Default |
-|-------------------------|-----------------------------------------------------------------------------------------------|---------|
-| `--random-count <n>`    | Number of seeds to generate when refilling the frontier.                                      | 100     |
-| `--random-infinite`     | Keep refilling seeds forever (ignores `--max-waves` and `--max-total`).                       | off     |
-| `--max-waves <n>`       | Stop after this many expansion waves (ignored with `--random-infinite`).                      | 100     |
-| `--max-frontier <n>`    | Hard cap on frontier size per wave to bound RAM usage.                                        | 5,000   |
-| `--max-total <n>`       | Abort after processing this many records (ignored with `--random-infinite`).                  | 500,000 |
-
-**Puzzle gates**
-
-| Flag                    | Purpose                                                                                           | Default source |
-|------------------------|---------------------------------------------------------------------------------------------------|----------------|
-| `--puzzle-quality`     | Require minimum depth/nodes before spending verification time.                                    | config         |
-| `--puzzle-winning`     | DSL that defines “single winning move” positions.                                                  | config         |
-| `--puzzle-drawing`     | DSL that defines “single drawing move” positions.                                                  | config         |
-| `--puzzle-accelerate`  | Lightweight pre-filter to short-circuit hopeless lines early.                                     | config         |
-
-The DSL uses `gate`, `leaf`, `eval`, `nodes`, and `break` keywords (see `Config.java` for ready-made snippets).
-
-Outputs are JSON (one object per line). When you pass a directory, files are timestamped (`standard-<ts>.puzzles.json`, `...nonpuzzles.json`). Passing `--output results.jsonl` yields `results.puzzles.json` and `results.nonpuzzles.json`.
+- Use `--verbose` to print stack traces for `print`, `clean`, and mining failures.
+- If a filter expression is invalid, the CLI logs the error and falls back to the default DSL for that gate.
+- Ensure your engine binary path in `config/default.engine.toml` (or a copy) exists and is executable; otherwise `mine` will fail when spawning engines.
+- When mining appears slow, lower `max-nodes`/`max-duration`, reduce `--engine-instances`, or relax the quality gate thresholds.
 
 ---
 
 ## Usage Examples
 
 ```bash
-# 1) Inspect a single FEN quickly
-java -cp out application.Main print --fen "8/8/8/2k5/2Pp4/1P1K4/8/8 w - - 0 1"
+# Print a FEN
+java -cp out application.Main print --fen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-# 2) Convert a record file and keep sidelines
-java -cp out application.Main record-to-plain -i data/source.record -o dump/source.plain --sidelines
+# Convert a record and keep sidelines (+CSV export)
+java -cp out application.Main record-to-plain -i data/source.record -o dump/source.plain --sidelines --csv
 
-# 3) Export a record file to CSV only
+# Convert record → CSV only
 java -cp out application.Main record-to-csv -i data/source.record -o dump/source.csv
 
-# 4) Mine 500 random seeds with higher limits
-java -cp out application.Main mine \
-  --random-count 500 \
-  --engine-instances 8 \
-  --max-nodes 75_000_000 \
-  --max-duration 90s \
-  --output dump/
+# Mine 500 random seeds with higher limits
+java -cp out application.Main mine --random-count 500 --engine-instances 8 --max-nodes 75_000_000 --max-duration 90s --output dump/
 
-# 5) Mine random Chess960 positions, infinite refill
-java -cp out application.Main mine \
-  --chess960 \
-  --random-infinite \
-  --output dump/chess960.json
+# Mine Chess960 positions endlessly
+java -cp out application.Main mine --chess960 --random-infinite --output dump/chess960.json
 
-# 6) Mine from a FEN text file (one or two FENs per line)
-java -cp out application.Main mine \
-  --input seeds/tactics.txt \
-  --output dump/tactics.json
-  # Lines may contain:
-  #   - one FEN (used as the position, parent left null), or
-  #   - two FENs (first = parent, second = position). Extra tokens are ignored if two FENs are present.
+# Mine from a FEN text file (one or two FENs per line: first = parent, second = position)
+java -cp out application.Main mine --input seeds/tactics.txt --output dump/tactics.json
 
-# 7) Mine from a PGN file (extracts positions from mainline + variations)
-java -cp out application.Main mine \
-  --input seeds/games.pgn \
-  --output dump/pgn-derived.json
+# Mine from PGN (mainline + variations become seeds)
+java -cp out application.Main mine --input seeds/games.pgn --output dump/pgn-derived.json
 
-# 8) Clean session cache/logs
+# Clean session cache/logs
 java -cp out application.Main clean
 ```
 
 ---
 
+## MLP Evaluator (optional)
+
+- Place the exported weights at `models/mlp_dual_wide.bin` (generate with `src/chess/nn2/export_weights.py` if needed).
+- Load in Java: `var eval = chess.mlp.MlpWeightsLoader.load(Path.of("models/mlp_dual_wide.bin"));`
+- Evaluate a position: `var result = eval.evaluate(position);` (`result.scalarEval`, `result.grid64`).
+- Feature encoding matches `chess.mlp.FeatureEncoder` (781 inputs: board, castling, en-passant file, side to move).
+
+---
+
 ## Outputs & Logs
 
-- `dump/` (default) collects your `*.puzzles.json` and `*.nonpuzzles.json` lines files. Change via config or `--output`.
-- `session/` stores structured logs (`application.log`, etc.) generated by `chess.debug.LogService`.
-- Clean up old session logs anytime with `java -cp out application.Main clean` (removes files under `session/`).
-- Converter outputs respect the destination you pass via `--output`; otherwise files appear adjacent to the source.
+- Puzzle exports are JSON Lines files with `.json` extensions: `<tag>-<timestamp>.puzzles.json` and `.nonpuzzles.json` when targeting a directory; `<stem>.puzzles.json` and `<stem>.nonpuzzles.json` when targeting a file-like root.
+- `dump/` is the default output root; override via config or `--output`.
+- `session/` holds logs from `chess.debug.LogService` (`application.log`, etc.); remove them anytime with `clean`.
 
 ---
 
 ## License
 
-Distributed under the terms of `LICENSE.txt`.
+See `LICENSE.txt`.

@@ -57,7 +57,8 @@ public class Dates {
 	}
 	
 	/**
-	 * Returns a time stamp {@code String} in the format "yyyy-MM-dd HH:mm:ss XXX"
+	 * Returns a time stamp {@code String} in the format {@code yyyy-MM-dd HH:mm:ss}
+	 * with an ISO-8601 zone offset (for example {@code +02:00}) appended,
 	 * of the current time.
 	 * 
 	 * <p>
@@ -72,14 +73,15 @@ public class Dates {
 	 * @see getMonth()
 	 * @see getDay()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getTimestamp() {
 		return getTimestamp(new Date());
 	}
 
 	/**
-	 * Returns a time stamp {@code String} in the format "yyyy-MM-dd HH:mm:ss XXX".
+	 * Returns a time stamp {@code String} in the format {@code yyyy-MM-dd HH:mm:ss}
+	 * with an ISO-8601 zone offset (for example {@code +02:00}) appended.
 	 * 
 	 * <p>
 	 * Example
@@ -94,7 +96,7 @@ public class Dates {
 	 * @see getMonth()
 	 * @see getDay()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getTimestamp(Date date) {
 		return format(TIMESTAMP_FORMAT, date);
@@ -117,7 +119,7 @@ public class Dates {
 	 * @see getMonth()
 	 * @see getDay()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getDate() {
 		return getDate(new Date());
@@ -139,7 +141,7 @@ public class Dates {
 	 * @see getMonth()
 	 * @see getDay()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getDate(Date date) {
 		return format(DATE_FORMAT, date);
@@ -154,7 +156,7 @@ public class Dates {
 	 * @see getMonth()
 	 * @see getDay()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getYear() {
 		return getYear(new Date());
@@ -169,7 +171,7 @@ public class Dates {
 	 * @see getMonth()
 	 * @see getDay()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getYear(Date date) {
 		return format(YEAR_FORMAT, date);
@@ -184,7 +186,7 @@ public class Dates {
 	 * @see getYear()
 	 * @see getDay()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getMonth() {
 		return getMonth(new Date());
@@ -199,7 +201,7 @@ public class Dates {
 	 * @see getYear()
 	 * @see getDay()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getMonth(Date date) {
 		return format(MONTH_FORMAT, date);
@@ -214,7 +216,7 @@ public class Dates {
 	 * @see getYear()
 	 * @see getMonth()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getDay() {
 		return getDay(new Date());
@@ -230,7 +232,7 @@ public class Dates {
 	 * @see getYear()
 	 * @see getMonth()
 	 * @see getTime()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getDay(Date date) {
 		return format(DAY_FORMAT, date);
@@ -246,7 +248,7 @@ public class Dates {
 	 * @see getYear()
 	 * @see getMonth()
 	 * @see getDay()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getTime() {
 		return getTime(new Date());
@@ -263,7 +265,7 @@ public class Dates {
 	 * @see getYear()
 	 * @see getMonth()
 	 * @see getDay()
-	 * @see getTimeZone()
+	 * @see getTimezone()
 	 */
 	public static String getTime(Date date) {
 		return format(TIME_FORMAT, date);

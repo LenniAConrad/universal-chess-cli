@@ -43,6 +43,7 @@ public class Tagging {
         // Some sources (e.g., FEN seed lists) do not provide a parent position. In
         // that case, fall back to using the current position for structural tagging
         // so callers still get phase/material/opening tags instead of an empty set.
+        //TODO CHANGE THIS IF IT DOES NOT HAVE A PARENT IT DOES NOT HAVE A PARENT. THAT IS JUST HOW IT IS
         Position contextParent = parent != null ? parent : position;
 
         EnumSet<PuzzleTheme> themes = PositionTagExtractor.extract(contextParent, position);

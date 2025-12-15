@@ -270,12 +270,15 @@ public class Converter {
         Json.streamTopLevelObjects(recordFile, objJson -> {
             try {
                 Record r = Record.fromJson(objJson);
+                if (r == null) {
+                    return; // skip malformed records
+                }
                 if (arguments != null && !arguments.apply(r.getAnalysis())) {
                     return;
                 }
                 int pivots = r.getAnalysis().getPivots();
                 maxPv[0] = Math.max(maxPv[0], Math.max(1, pivots));
-            } catch (IllegalArgumentException ignore) {
+            } catch (IllegalArgumentException | NullPointerException ignore) {
                 // Skip invalid records in the sizing pass
             }
         });
@@ -322,6 +325,10 @@ public class Converter {
             AtomicLong bad) {
         try {
             Record r = Record.fromJson(objJson);
+            if (r == null) {
+                bad.incrementAndGet();
+                return;
+            }
             if (arguments == null || arguments.apply(r.getAnalysis())) {
                 String block = Plain.toString(r, exportall);
                 (writeBlock(out, block) ? ok : bad).incrementAndGet();
@@ -354,6 +361,10 @@ public class Converter {
             AtomicLong bad) {
         try {
             Record r = Record.fromJson(objJson);
+            if (r == null) {
+                bad.incrementAndGet();
+                return;
+            }
             if (arguments == null || arguments.apply(r.getAnalysis())) {
                 writeCsvRow(out, r, maxPv);
                 ok.incrementAndGet();

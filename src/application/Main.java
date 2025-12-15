@@ -1,6 +1,7 @@
 package application;
 
 import java.io.IOException;
+import java.io.BufferedWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import application.console.Bar;
 import chess.core.Position;
 import chess.core.SAN;
 import chess.core.Setup;
@@ -31,7 +33,8 @@ import utility.Argv;
  *
  * <p>
  * Recognized subcommands are {@code record-to-plain}, {@code record-to-csv},
- * {@code mine}, {@code print}, {@code clean}, and {@code help}.
+ * {@code record-to-dataset}, {@code stack-to-dataset}, {@code mine},
+ * {@code gen-fens}, {@code eval-fens}, {@code print}, {@code clean}, and {@code help}.
  * Prints usage information when no subcommand is supplied. For unknown
  * subcommands, prints an
  * error and exits with status {@code 2}.
@@ -91,6 +94,10 @@ public final class Main {
 		switch (sub) {
 			case "record-to-plain" -> runConvert(b);
 			case "record-to-csv" -> runConvertCsv(b);
+			case "record-to-dataset" -> runRecordToDataset(b);
+			case "stack-to-dataset" -> runStackToDataset(b);
+			case "gen-fens" -> runGenerateFens(b);
+			case "eval-fens" -> runEvalFens(b);
 			case "mine" -> runMine(b);
 			case "print" -> runPrint(b);
 			case "clean" -> runClean(b);
@@ -180,6 +187,216 @@ public final class Main {
 		}
 
 		Converter.recordToCsv(filter, in, out);
+	}
+
+	/**
+	 * Convert a .record JSON array into Numpy .npy tensors (features/labels).
+	 */
+	private static void runRecordToDataset(Argv a) {
+		Path in = a.pathRequired(OPT_INPUT, "-i");
+		Path out = a.path(OPT_OUTPUT, "-o");
+		a.ensureConsumed();
+
+		if (out == null) {
+			// Default: alongside input with stem + ".dataset"
+			String stem = in.getFileName().toString();
+			int dot = stem.lastIndexOf('.');
+			if (dot > 0) {
+				stem = stem.substring(0, dot);
+			}
+			out = in.resolveSibling(stem + ".dataset");
+		}
+
+		try {
+			chess.io.RecordDatasetExporter.export(in, out);
+			System.out.printf("Wrote %s.features.npy and %s.labels.npy%n", out, out);
+		} catch (IOException e) {
+			System.err.println("Failed to export dataset: " + e.getMessage());
+			System.exit(2);
+		}
+	}
+
+	/**
+	 * Convert a Stack-*.json puzzle dump (JSON array) into NPY tensors.
+	 */
+	private static void runStackToDataset(Argv a) {
+		Path in = a.pathRequired(OPT_INPUT, "-i");
+		Path out = a.path(OPT_OUTPUT, "-o");
+		a.ensureConsumed();
+
+		if (out == null) {
+			String stem = in.getFileName().toString();
+			int dot = stem.lastIndexOf('.');
+			if (dot > 0) {
+				stem = stem.substring(0, dot);
+			}
+			out = in.resolveSibling(stem + ".dataset");
+		}
+
+		try {
+			chess.io.StackDatasetExporter.export(in, out);
+			System.out.printf("Wrote %s.features.npy and %s.labels.npy%n", out, out);
+		} catch (IOException e) {
+			System.err.println("Failed to export stack dataset: " + e.getMessage());
+			System.exit(2);
+		}
+	}
+
+	/**
+	 * Generate shard files containing random legal FENs (standard or Chess960).
+	 *
+	 * <p>
+	 * Defaults: 1,000 files, 100,000 FENs each, first 100 files Chess960, output
+	 * directory {@code all_positions_shards}, batch size 2,048.
+	 *
+	 * @param a parsed argument vector
+	 */
+	private static void runGenerateFens(Argv a) {
+		final boolean verbose = a.flag(OPT_VERBOSE, "-v");
+		Path outDir = a.path(OPT_OUTPUT, "-o");
+		final int files = a.integerOr(1_000, "--files");
+		final int perFile = a.integerOr(100_000, "--per-file", "--fens-per-file");
+		final int chess960Files = a.integerOr(100, "--chess960-files", "--chess960");
+		final int batch = a.integerOr(2_048, "--batch");
+		final boolean ascii = a.flag("--ascii");
+
+		a.ensureConsumed();
+
+		if (files <= 0) {
+			System.err.println("gen-fens: --files must be positive");
+			System.exit(2);
+		}
+		if (perFile <= 0) {
+			System.err.println("gen-fens: --per-file must be positive");
+			System.exit(2);
+		}
+		if (batch <= 0) {
+			System.err.println("gen-fens: --batch must be positive");
+			System.exit(2);
+		}
+		if (chess960Files < 0 || chess960Files > files) {
+			System.err.printf("gen-fens: --chess960-files must be between 0 and %d%n", files);
+			System.exit(2);
+		}
+
+		if (outDir == null) {
+			outDir = Paths.get("all_positions_shards");
+		}
+
+		try {
+			Files.createDirectories(outDir);
+		} catch (IOException e) {
+			System.err.println("gen-fens: failed to create output directory: " + e.getMessage());
+			if (verbose) {
+				e.printStackTrace(System.err);
+			}
+			System.exit(2);
+		}
+
+		final long total = (long) files * (long) perFile;
+		final int barTotal = (total > Integer.MAX_VALUE) ? 0 : (int) total;
+		final Bar bar = new Bar(barTotal, "fens", ascii);
+		final int width = Math.max(4, String.valueOf(Math.max(files - 1, 0)).length());
+
+		for (int i = 0; i < files; i++) {
+			boolean useChess960 = i < chess960Files;
+			String suffix = useChess960 ? "-960" : "-std";
+			String name = String.format("fens-%0" + width + "d%s.txt", i, suffix);
+			Path target = outDir.resolve(name);
+
+			try {
+				writeFenShard(target, perFile, useChess960, batch, bar);
+			} catch (Exception e) {
+				System.err.println("gen-fens: failed to write " + target + ": " + e.getMessage());
+				if (verbose) {
+					e.printStackTrace(System.err);
+				}
+				System.exit(1);
+			}
+		}
+
+		bar.finish();
+		System.out.printf(
+				"gen-fens wrote %d files (%d Chess960) to %s%n",
+				files,
+				chess960Files,
+				outDir.toAbsolutePath());
+	}
+
+	/**
+	 * Used for writing a shard file of random FENs to disk.
+	 *
+	 * @param target    output path
+	 * @param fenCount  number of FENs to write
+	 * @param chess960  whether to seed from Chess960 starts
+	 * @param batchSize how many random positions to generate per batch
+	 * @param bar       progress bar (disabled when total is zero)
+	 * @throws IOException when writing fails
+	 */
+	private static void writeFenShard(
+			Path target,
+			int fenCount,
+			boolean chess960,
+			int batchSize,
+			Bar bar) throws IOException {
+		try (BufferedWriter writer = Files.newBufferedWriter(target)) {
+			int remaining = fenCount;
+			while (remaining > 0) {
+				int chunk = Math.min(batchSize, remaining);
+				List<Position> positions = Setup.getRandomPositions(chunk, chess960);
+				for (Position p : positions) {
+					writer.write(p.toString());
+					writer.newLine();
+					bar.step();
+				}
+				remaining -= chunk;
+			}
+		}
+	}
+
+	/**
+	 * Evaluate FEN shards with Stockfish "eval" and write JSONL outputs.
+	 *
+	 * Options:
+	 * <ul>
+	 * <li>{@code --input|-i} input directory with FEN shard .txt files (default
+	 * {@code all_positions_shards})</li>
+	 * <li>{@code --output|-o} output directory (default {@code eval_shards})</li>
+	 * <li>{@code --workers|-e} number of engine workers (default Config
+	 * engine-instances)</li>
+	 * <li>{@code --protocol-path|-P} TOML describing engine path/options (default
+	 * Config protocol-path)</li>
+	 * <li>{@code --write-npy} also emit {@code .labels.npy} per shard
+	 * (float32, shape (N,65): scalar then 64-cell grid)</li>
+	 * <li>{@code --ascii} ASCII progress bars</li>
+	 * </ul>
+	 */
+	private static void runEvalFens(Argv a) {
+		Path input = a.path(OPT_INPUT, "-i");
+		Path output = a.path(OPT_OUTPUT, "-o");
+		int workers = a.integerOr(Config.getEngineInstances(), "--workers", "-e");
+		String proto = optional(a.string("--protocol-path", "-P"), Config.getProtocolPath());
+		boolean ascii = a.flag("--ascii");
+		boolean writeNpy = a.flag("--write-npy");
+		final boolean verbose = a.flag(OPT_VERBOSE, "-v");
+		a.ensureConsumed();
+
+		if (input == null) {
+			input = Paths.get("all_positions_shards");
+		}
+		if (output == null) {
+			output = Paths.get("eval_shards");
+		}
+
+		try {
+			EvalMiner.mine(input, output, workers, proto, ascii, writeNpy);
+		} catch (Exception e) {
+			System.err.println("eval-fens failed: " + e.getMessage());
+			if (verbose) {
+				e.printStackTrace(System.err);
+			}
+			System.exit(1);
+		}
 	}
 
 	/**
@@ -283,6 +500,10 @@ public final class Main {
 						commands:
 						  record-to-plain Convert .record JSON to .plain
 						  record-to-csv  Convert .record JSON to CSV (no .plain output)
+						  record-to-dataset Convert .record JSON to NPY tensors (features/labels)
+						  stack-to-dataset Convert Stack-*.json puzzle dumps to NPY tensors
+						  gen-fens  Generate random legal FEN shards (standard + Chess960 mix)
+						  eval-fens Evaluate FEN shards with Stockfish \"eval\" (JSONL per shard)
 						  mine      Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
 						  print     Pretty-print a FEN
 						  clean     Delete session cache/logs
@@ -299,6 +520,32 @@ public final class Main {
 						  --input|-i <path>          Input .record file (required)
 						  --output|-o <path>         Output .csv file (optional; default derived)
 						  --filter|-f <dsl>          Filter-DSL string for selecting records
+
+						record-to-dataset options:
+						  --input|-i <path>          Input .record file (required, JSON array)
+						  --output|-o <path>         Output stem (writes <stem>.features.npy, <stem>.labels.npy)
+
+						stack-to-dataset options:
+						  --input|-i <path>          Input Stack-*.json file (required, JSON array)
+						  --output|-o <path>         Output stem (writes <stem>.features.npy, <stem>.labels.npy)
+
+						gen-fens options:
+						  --output|-o <dir>          Output directory (default all_positions_shards)
+						  --files <n>                Number of files to generate (default 1000)
+						  --per-file <n>             FENs per file (default 100000)
+						  --chess960-files <n>       Files to seed from Chess960 (default 100)
+						  --batch <n>                Random positions per batch (default 2048)
+						  --ascii                    Render ASCII progress bar
+						  --verbose|-v               Print stack trace on failure
+
+						eval-fens options:
+						  --input|-i <dir>           Input shard directory (default all_positions_shards)
+						  --output|-o <dir>          Output directory (default eval_shards)
+						  --workers|-e <n>           Engine workers (default config engine-instances)
+						  --protocol-path|-P <toml>  Engine protocol TOML (default config)
+						  --write-npy                Also emit <shard>.labels.npy (shape (N,65): scalar + 64 grid)
+						  --ascii                    Render ASCII progress bars
+						  --verbose|-v               Print stack trace on failure
 
 						mine options (overrides & inputs):
 						  --chess960|-9               Enable Chess960 mining
@@ -476,6 +723,7 @@ public final class Main {
 			List<Record> frontier,
 			MiningConfig config) throws IOException {
 		final Set<String> seenFen = new HashSet<>(frontier.size() * 2);
+		final Set<String> analyzedFen = new HashSet<>(frontier.size() * 2);
 
 		int waves = 0;
 		int processed = 0;
@@ -483,6 +731,16 @@ public final class Main {
 		while (true) {
 			if (frontier.isEmpty() && config.infinite()) {
 				frontier = wrapSeeds(Setup.getRandomPositionSeeds(config.randomSeeds(), config.chess960()));
+			}
+
+			frontier = deduplicateFrontier(frontier, seenFen, analyzedFen);
+			if (frontier.isEmpty()) {
+				if (processed >= config.maxTotal() || waves >= config.maxWaves()) {
+					break;
+				}
+				if (config.infinite()) {
+					continue;
+				}
 			}
 
 			if (shouldStop(frontier, waves, processed, config.maxWaves(), config.maxTotal())) {
@@ -496,6 +754,7 @@ public final class Main {
 					frontier,
 					config.verify(),
 					seenFen,
+					analyzedFen,
 					processed,
 					config.maxTotal());
 
@@ -587,6 +846,43 @@ public final class Main {
 	}
 
 	/**
+	 * Used for filtering out already-processed or duplicate positions from the
+	 * frontier.
+	 *
+	 * @param frontier    current frontier
+	 * @param seenFen     global de-duplication set (mutated to register queued
+	 *                    positions)
+	 * @param analyzedFen positions that have already been fully analyzed
+	 * @return possibly trimmed frontier
+	 */
+	private static List<Record> deduplicateFrontier(
+			List<Record> frontier,
+			Set<String> seenFen,
+			Set<String> analyzedFen) {
+		if (frontier.isEmpty()) {
+			return frontier;
+		}
+
+		final List<Record> unique = new ArrayList<>(frontier.size());
+		final Set<String> waveSeen = new HashSet<>(frontier.size() * 2);
+
+		for (Record rec : frontier) {
+			final Position pos = rec.getPosition();
+			if (pos == null) {
+				continue;
+			}
+			final String fen = pos.toString();
+			if (analyzedFen.contains(fen) || !waveSeen.add(fen)) {
+				continue;
+			}
+			seenFen.add(fen); // Register for child de-duplication across waves.
+			unique.add(rec);
+		}
+
+		return (unique.size() == frontier.size()) ? frontier : unique;
+	}
+
+	/**
 	 * Used for analyzing a wave of records via the engine pool.
 	 *
 	 * @param pool     engine pool
@@ -610,6 +906,7 @@ public final class Main {
 	 * @param frontier   current frontier
 	 * @param verify     puzzle verification filter
 	 * @param seenFen    FEN de-duplication set
+	 * @param analyzedFen processed FEN set for skipping re-analysis
 	 * @param puzzles    collected puzzles
 	 * @param nonPuzzles collected non-puzzles
 	 * @param processed  processed count so far
@@ -620,6 +917,7 @@ public final class Main {
 			List<Record> frontier,
 			Filter verify,
 			Set<String> seenFen,
+			Set<String> analyzedFen,
 			int processed,
 			long maxTotal) {
 		final List<Record> next = new ArrayList<>(frontier.size() * 2);
@@ -628,9 +926,13 @@ public final class Main {
 
 		for (Record r : frontier) {
 			processed++;
+			final Position pos = r.getPosition();
+			if (pos != null) {
+				analyzedFen.add(pos.toString());
+			}
 			if (verify.apply(r.getAnalysis())) {
 				wavePuzzles.add(r);
-				expandBestMoveChildren(r, seenFen, next, processed, maxTotal);
+				expandBestMoveChildren(r, seenFen, analyzedFen, next, processed, maxTotal);
 			} else {
 				waveNonPuzzles.add(r);
 			}
@@ -647,6 +949,7 @@ public final class Main {
 	 *
 	 * @param r         analyzed record
 	 * @param seenFen   de-duplication set
+	 * @param analyzedFen processed FEN set for skipping re-analysis
 	 * @param next      accumulator for next frontier
 	 * @param processed processed count so far
 	 * @param maxTotal  maximum records permitted
@@ -654,6 +957,7 @@ public final class Main {
 	private static void expandBestMoveChildren(
 			Record r,
 			Set<String> seenFen,
+			Set<String> analyzedFen,
 			List<Record> next,
 			int processed,
 			long maxTotal) {
@@ -662,6 +966,9 @@ public final class Main {
 
 		for (Position child : parent.generateSubPositions()) {
 			final String fen = child.toString(); // assumes FEN canonicalization
+			if (analyzedFen.contains(fen)) {
+				continue;
+			}
 			if (seenFen.add(fen)) {
 				next.add(new Record().withPosition(child).withParent(parent));
 				if (processed + next.size() >= maxTotal) {

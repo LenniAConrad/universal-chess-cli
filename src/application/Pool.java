@@ -75,6 +75,16 @@ public final class Pool implements AutoCloseable {
                 LogService.error(e, "Failed to create Engine instance.");
             }
         }
+
+        if (engines.isEmpty()) {
+            executor.shutdownNow();
+            throw new IOException("No engine instances could be created for protocol: " + protocolPath);
+        }
+
+        if (engines.size() < instances) {
+            LogService.warn(String.format("Only %d/%d engine instances were created; continuing with reduced capacity.",
+                    engines.size(), instances));
+        }
     }
 
     /**
@@ -109,11 +119,13 @@ public final class Pool implements AutoCloseable {
             Filter accelerate,
             long maxNodes,
             long maxDurationMs) {
-        final List<Record> out = new ArrayList<>(records.size());
+        final List<Record> out = new ArrayList<>(java.util.Collections.nCopies(records.size(), null));
         final List<Callable<Void>> jobs = new ArrayList<>(records.size());
         final Bar progressBar = new Bar(records.size());
 
-        for (Record rec : records) {
+        for (int idx = 0; idx < records.size(); idx++) {
+            final int recIndex = idx;
+            final Record rec = records.get(idx);
             jobs.add(() -> {
                 Engine eng = null;
                 try {
@@ -127,9 +139,7 @@ public final class Pool implements AutoCloseable {
                             engines.put(eng);
                         }
                     }
-                    synchronized (out) {
-                        out.add(rec);
-                    }
+                    out.set(recIndex, rec);
                 } finally {
                     progressBar.step();
                 }
