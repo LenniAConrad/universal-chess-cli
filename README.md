@@ -1,5 +1,7 @@
 # Universal Chess CLI (ucicli)
 
+![ucicli GitHub banner](assets/ucicli-github-banner.png)
+
 Universal Chess CLI is a zero-dependency Java 17 toolkit for driving UCI chess engines, mining tactical puzzles, converting Arena `.record` files, and printing FENs without needing a GUI.
 
 ---
