@@ -129,8 +129,14 @@ public final class Pgn {
     }
 
     /**
-     * Parses the tag section at the top of a PGN block and returns the line index
-     * where movetext begins.
+     * Parses the tag section at the top of a PGN block.
+     *
+     * <p>Returns the line index where movetext begins after any tag pairs
+     * and the optional blank separator.</p>
+     *
+     * @param lines PGN lines split by {@code \R}
+     * @param game  target game to receive parsed tags
+     * @return index of the first movetext line
      */
     private static int parseTagSection(String[] lines, Game game) {
         int lineIdx = 0;
@@ -166,6 +172,8 @@ public final class Pgn {
 
     /**
      * Applies the Result tag to the game if present.
+     *
+     * @param game target game to update
      */
     private static void applyResultTag(Game game) {
         String resultTag = game.getTags().get("Result");
@@ -176,6 +184,13 @@ public final class Pgn {
 
     /**
      * Collects movetext lines into a single string from a starting index.
+     *
+     * <p>Non-empty lines are concatenated with spaces to preserve token
+     * separation.</p>
+     *
+     * @param lines    PGN lines to scan
+     * @param startIdx first line index to include
+     * @return aggregated movetext string (possibly empty)
      */
     private static String collectMovetext(String[] lines, int startIdx) {
         StringBuilder movetext = new StringBuilder();
@@ -260,6 +275,9 @@ public final class Pgn {
 
     /**
      * Serializes multiple games to PGN text (two newlines between games).
+     *
+     * @param games games to serialize
+     * @return PGN text (empty when {@code games} is null/empty)
      */
     public static String toPgnString(List<Game> games) {
         if (games == null || games.isEmpty()) {
@@ -276,8 +294,12 @@ public final class Pgn {
     }
 
     /**
-     * Serializes a single game to PGN text, including SetUp/FEN tags when the
-     * start position is non-standard.
+     * Serializes a single game to PGN text.
+     *
+     * <p>Includes SetUp/FEN tags when the start position is non-standard.</p>
+     *
+     * @param game game to serialize
+     * @return PGN text for the game
      */
     public static String toPgn(Game game) {
         StringBuilder sb = new StringBuilder(256);
@@ -323,6 +345,14 @@ public final class Pgn {
         return sb.toString().trim();
     }
 
+    /**
+     * Appends a mainline sequence with any nested variations to the builder.
+     * Emits move numbers, comments, NAGs, and recursive variation blocks.
+     *
+     * @param node starting node of the sequence
+     * @param tracker ply tracker used for move numbering
+     * @param sb output builder to append to
+     */
     private static void appendSequence(Game.Node node, PlyTracker tracker, StringBuilder sb) {
         Game.Node cur = node;
         while (cur != null) {
@@ -347,6 +377,13 @@ public final class Pgn {
         }
     }
 
+    /**
+     * Appends the appropriate move number prefix for the current ply.
+     * Emits "..." when starting from a black-to-move position.
+     *
+     * @param tracker ply tracker used for move numbering
+     * @param sb output builder to append to
+     */
     private static void appendMoveNumber(PlyTracker tracker, StringBuilder sb) {
         if (tracker.ply % 2 == 0) {
             sb.append(tracker.moveNumber).append(". ");
@@ -356,6 +393,13 @@ public final class Pgn {
         }
     }
 
+    /**
+     * Appends PGN comments to the output, wrapping them in braces.
+     * Skips empty or {@code null} comment lists.
+     *
+     * @param comments comments to append
+     * @param sb output builder to append to
+     */
     private static void appendComments(List<String> comments, StringBuilder sb) {
         if (comments == null || comments.isEmpty()) {
             return;
@@ -365,6 +409,13 @@ public final class Pgn {
         }
     }
 
+    /**
+     * Appends numeric annotation glyphs (NAGs) to the output.
+     * Skips empty lists and {@code null} entries.
+     *
+     * @param nags NAG values to append
+     * @param sb output builder to append to
+     */
     private static void appendNags(List<Integer> nags, StringBuilder sb) {
         if (nags == null || nags.isEmpty()) {
             return;
@@ -377,17 +428,21 @@ public final class Pgn {
     }
 
     /**
-     * Parses a sequence of tokens into a mainline with variations, accumulating
-     * comments and NAGs along the way.
-     *
-     * @param game             target game to mutate
-     * @param tokens           pre-tokenized movetext
-     * @param index            mutable cursor into {@code tokens}
-     * @param pendingComments  comments collected before encountering a move
-     * @return head of the parsed mainline, or {@code null} if none
+     * Maximum nesting depth allowed when parsing variations.
+     * Protects against pathological PGN structures.
      */
     private static final int MAX_NESTING = 256;
 
+    /**
+     * Parses a sequence of tokens into a mainline with variations.
+     * Delegates to the depth-aware implementation.
+     *
+     * @param game            target game to mutate
+     * @param tokens          pre-tokenized movetext
+     * @param index           mutable cursor into {@code tokens}
+     * @param pendingComments comments collected before encountering a move
+     * @return head of the parsed mainline, or {@code null} if none
+     */
     private static Game.Node parseSequence(Game game, List<Token> tokens, Index index, List<String> pendingComments) {
         return parseSequence(game, tokens, index, pendingComments, 1);
     }
@@ -496,6 +551,10 @@ public final class Pgn {
 
     /**
      * Detects whether a result token begins at {@code start} in {@code text}.
+     *
+     * @param text source movetext
+     * @param start index to inspect
+     * @return matched result token, or {@code null} if none
      */
     private static String resultToken(String text, int start) {
         String[] candidates = { "1-0", "0-1", "1/2-1/2", "*" };
@@ -512,6 +571,11 @@ public final class Pgn {
 
     /**
      * Checks if a candidate token is delimited by whitespace or punctuation.
+     *
+     * @param text source movetext
+     * @param start candidate start index
+     * @param length candidate token length
+     * @return {@code true} if the token is properly bounded
      */
     private static boolean isTokenBoundary(String text, int start, int length) {
         int end = start + length;
@@ -523,8 +587,11 @@ public final class Pgn {
     }
 
     /**
-     * Strips move numbers and result tokens, returning cleaned SAN tokens or empty
-     * string when none remain.
+     * Strips move numbers and result tokens from a raw token.
+     * Returns an empty string when nothing usable remains.
+     *
+     * @param token raw token to sanitize
+     * @return cleaned SAN token or an empty string
      */
     private static String sanitizeMoveToken(String token) {
         if (token == null) {
@@ -553,7 +620,15 @@ public final class Pgn {
      * Simple value object representing a token kind and its payload.
      */
     private static final class Token {
+        /**
+         * Token kind describing how to interpret the payload.
+         * Used by the parser to dispatch token handling.
+         */
         final TokenKind kind;
+        /**
+         * Raw token payload text.
+         * May be empty for tokens without a payload.
+         */
         final String value;
 
         /**
@@ -584,12 +659,20 @@ public final class Pgn {
      * Mutable cursor used during recursive descent parsing.
      */
     private static final class Index {
+        /**
+         * Current cursor index into the token list.
+         * Mutated as parsing advances.
+         */
         int value = 0;
     }
 
     /**
      * Creates a move node and attaches any pending comments that appeared before
      * it.
+     *
+     * @param pendingComments comments waiting to be attached
+     * @param san SAN move text
+     * @return created move node with attached comments
      */
     private static Game.Node createMoveNode(List<String> pendingComments, String san) {
         Game.Node node = new Game.Node(san);
@@ -603,6 +686,11 @@ public final class Pgn {
     /**
      * Applies a comment token either before the next move or after the current one,
      * depending on parsing context.
+     *
+     * @param current current move node (may be {@code null})
+     * @param pendingComments pending comments collected before a move
+     * @param token comment token to apply
+     * @param lastWasMove whether the last token was a move
      */
     private static void handleCommentToken(Game.Node current, List<String> pendingComments, Token token, boolean lastWasMove) {
         if (current != null && lastWasMove) {
@@ -614,6 +702,9 @@ public final class Pgn {
 
     /**
      * Parses a NAG token and attaches it to the current node when possible.
+     *
+     * @param current current move node (may be {@code null})
+     * @param token NAG token to apply
      */
     private static void handleNagToken(Game.Node current, Token token) {
         if (current == null) {
@@ -629,6 +720,12 @@ public final class Pgn {
     /**
      * Parses a nested variation starting at the current cursor and attaches it
      * either to the current move or to the game's root variations.
+     *
+     * @param game target game to mutate
+     * @param tokens pre-tokenized movetext
+     * @param index mutable cursor into {@code tokens}
+     * @param current current move node (may be {@code null})
+     * @param depth current recursion depth
      */
     private static void handleVariation(Game game, List<Token> tokens, Index index, Game.Node current, int depth) {
         if (depth >= MAX_NESTING) {
@@ -652,6 +749,11 @@ public final class Pgn {
     /**
      * Reads a block comment starting at {@code idx} and returns the next index to
      * scan.
+     *
+     * @param text source text being tokenized
+     * @param idx current index into {@code text}
+     * @param tokens token list to append to
+     * @return next index to continue scanning from
      */
     private static int readBlockComment(String text, int idx, List<Token> tokens) {
         int end = text.indexOf('}', idx + 1);
@@ -662,6 +764,11 @@ public final class Pgn {
 
     /**
      * Reads a line comment starting at {@code idx} and returns the next index.
+     *
+     * @param text source text being tokenized
+     * @param idx current index into {@code text}
+     * @param tokens token list to append to
+     * @return next index to continue scanning from
      */
     private static int readLineComment(String text, int idx, List<Token> tokens) {
         int end = text.indexOf('\n', idx + 1);
@@ -672,6 +779,11 @@ public final class Pgn {
 
     /**
      * Emits a parenthesis token and returns the advanced index.
+     *
+     * @param idx current index into the text
+     * @param tokens token list to append to
+     * @param kind token kind indicating open or close paren
+     * @return next index to continue scanning from
      */
     private static int readParenToken(int idx, List<Token> tokens, TokenKind kind) {
         tokens.add(new Token(kind, String.valueOf((kind == TokenKind.VAR_OPEN ? '(' : ')'))));
@@ -680,6 +792,12 @@ public final class Pgn {
 
     /**
      * Reads a NAG token (e.g., {@code $3}) and returns the advanced index.
+     *
+     * @param text source text being tokenized
+     * @param idx current index into {@code text}
+     * @param tokens token list to append to
+     * @param len cached length of {@code text}
+     * @return next index to continue scanning from
      */
     private static int readNag(String text, int idx, List<Token> tokens, int len) {
         int i = idx + 1;
@@ -694,6 +812,12 @@ public final class Pgn {
 
     /**
      * Reads either a result token or a SAN move starting at {@code idx}.
+     *
+     * @param text source text being tokenized
+     * @param idx current index into {@code text}
+     * @param tokens token list to append to
+     * @param len cached length of {@code text}
+     * @return next index to continue scanning from
      */
     private static int readMoveOrResult(String text, int idx, List<Token> tokens, int len) {
         String result = resultToken(text, idx);
@@ -723,8 +847,20 @@ public final class Pgn {
      * Tracks ply and move number while emitting movetext.
      */
     private static final class PlyTracker {
+        /**
+         * Current ply index starting from zero.
+         * Used to decide when to increment move numbers.
+         */
         final int ply;
+        /**
+         * Current move number in the PGN output.
+         * Incremented after each completed full move.
+         */
         final int moveNumber;
+        /**
+         * Whether to emit black move numbers when starting from black to move.
+         * Controls the initial "..." prefix behavior.
+         */
         final boolean printBlackNumbers;
 
         /**
@@ -740,10 +876,22 @@ public final class Pgn {
             this.printBlackNumbers = printBlackNumbers;
         }
 
+        /**
+         * Returns a copy of this tracker with the same counters.
+         * Used when branching into variations.
+         *
+         * @return copied tracker state
+         */
         PlyTracker copy() {
             return new PlyTracker(ply, moveNumber, printBlackNumbers);
         }
 
+        /**
+         * Advances to the next ply and updates the move number when needed.
+         * Preserves the black-number printing policy.
+         *
+         * @return tracker representing the next ply
+         */
         PlyTracker next() {
             int nextPly = ply + 1;
             int nextMoveNumber = moveNumber;

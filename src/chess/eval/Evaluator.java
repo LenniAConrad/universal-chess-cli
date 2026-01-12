@@ -131,6 +131,7 @@ public final class Evaluator implements AutoCloseable {
      * @param weights path to LC0 {@code .bin} weights (non-null)
      * @param terminalAwareClassical if true, the classical fallback will try to
      *                               detect checkmate/stalemate via move generation
+     * @throws IllegalArgumentException if {@code weights} is null
      */
     public Evaluator(Path weights, boolean terminalAwareClassical) {
         if (weights == null) {
@@ -145,6 +146,7 @@ public final class Evaluator implements AutoCloseable {
      *
      * @param position position to evaluate (non-null)
      * @return evaluation result (non-null)
+     * @throws IllegalArgumentException if {@code position} is null
      */
     public Result evaluate(Position position) {
         if (position == null) {
@@ -195,6 +197,7 @@ public final class Evaluator implements AutoCloseable {
      * @param position position to evaluate (non-null)
      * @return LC0-backed evaluation result
      * @throws IllegalStateException if LC0 is unavailable or initialization fails
+     * @throws IllegalArgumentException if {@code position} is null
      */
     public Result evaluateLc0(Position position) {
         if (position == null) {
@@ -262,6 +265,7 @@ public final class Evaluator implements AutoCloseable {
      *
      * @param position position to ablate (non-null)
      * @return 8x8 matrix of inverted ablation scores from the side-to-move perspective
+     * @throws IllegalArgumentException if {@code position} is null
      */
     public int[][] ablation(Position position) {
         if (position == null) {
@@ -406,6 +410,13 @@ public final class Evaluator implements AutoCloseable {
         close();
     }
 
+    /**
+     * Caches the last evaluation result for quick reuse.
+     * Updates both the general cache and the LC0-specific cache when applicable.
+     *
+     * @param signature position signature used as cache key
+     * @param result evaluation result to cache
+     */
     private void cache(long signature, Result result) {
         lastEvalCache.set(new CacheEntry(signature, result));
         if (result.backend() != Backend.CLASSICAL) {
@@ -413,7 +424,21 @@ public final class Evaluator implements AutoCloseable {
         }
     }
 
+    /**
+     * Immutable cache entry holding a signature and result pair.
+     * Ensures cached results are non-null.
+     *
+     * @param signature position signature used as cache key
+     * @param result evaluation result to cache
+     */
     private record CacheEntry(long signature, Result result) {
+        /**
+         * Validates the cache entry inputs for a recorded evaluation.
+         *
+         * @param signature position signature used as cache key
+         * @param result evaluation result to cache (non-null)
+         * @throws IllegalArgumentException if {@code result} is {@code null}
+         */
         private CacheEntry {
             if (result == null) {
                 throw new IllegalArgumentException("result == null");
@@ -476,7 +501,15 @@ public final class Evaluator implements AutoCloseable {
      * Small holder for an LC0 prediction and backend identifier.
      */
     private static final class Lc0Prediction {
+        /**
+         * LC0 prediction payload containing policy/WDL/value outputs.
+         * Used to avoid recomputing predictions for the same position.
+         */
         private final Network.Prediction prediction;
+        /**
+         * Backend identifier reported by LC0.
+         * Used for logging and backend selection.
+         */
         private final String backend;
 
         /**

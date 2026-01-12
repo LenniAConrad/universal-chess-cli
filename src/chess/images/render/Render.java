@@ -97,12 +97,12 @@ public final class Render {
 	/**
 	 * Default background color for per-square text overlays (used when no auto color applies).
 	 */
-	private static final Color DEFAULT_SQUARE_TEXT_BACKGROUND = new Color(0, 0, 0, 150);
+	private static final Color DEFAULT_SQUARE_TEXT_BACKGROUND = new Color(0, 0, 0, 170);
 
 	/**
 	 * Default border color for per-square text overlays (used when no auto color applies).
 	 */
-	private static final Color DEFAULT_SQUARE_TEXT_BORDER = new Color(255, 255, 255, 140);
+	private static final Color DEFAULT_SQUARE_TEXT_BORDER = new Color(255, 255, 255, 160);
 
 	/**
 	 * Text color used for overlays on squares occupied by White pieces when auto contrast is off.
@@ -114,13 +114,13 @@ public final class Render {
 	 * Background color for White-piece text overlays when manual styling is requested.
 	 * This translucent white frame makes digits stand out without obscuring the underlying square.
 	 */
-	private static final Color DEFAULT_SQUARE_TEXT_WHITE_PIECE_BACKGROUND = new Color(255, 255, 255, 180);
+	private static final Color DEFAULT_SQUARE_TEXT_WHITE_PIECE_BACKGROUND = new Color(255, 255, 255, 200);
 
 	/**
 	 * Border color for White-piece overlays to visually separate them from the board.
 	 * The low opacity keeps the border subtle while preserving contrast.
 	 */
-	private static final Color DEFAULT_SQUARE_TEXT_WHITE_PIECE_BORDER = new Color(0, 0, 0, 120);
+	private static final Color DEFAULT_SQUARE_TEXT_WHITE_PIECE_BORDER = new Color(0, 0, 0, 170);
 
 	/**
 	 * Text color used for overlays on squares occupied by Black pieces.
@@ -132,13 +132,13 @@ public final class Render {
 	 * Background color for Black-piece text overlays when explicit styling is needed.
 	 * The translucent black keeps the overlay readable while allowing the board to remain visible.
 	 */
-	private static final Color DEFAULT_SQUARE_TEXT_BLACK_PIECE_BACKGROUND = new Color(0, 0, 0, 150);
+	private static final Color DEFAULT_SQUARE_TEXT_BLACK_PIECE_BACKGROUND = new Color(0, 0, 0, 170);
 
 	/**
 	 * Border color for Black-piece overlays, mirroring the lighter border used elsewhere.
 	 * This consistent tone helps overlay borders stay harmonious across themes.
 	 */
-	private static final Color DEFAULT_SQUARE_TEXT_BLACK_PIECE_BORDER = new Color(255, 255, 255, 140);
+	private static final Color DEFAULT_SQUARE_TEXT_BLACK_PIECE_BORDER = new Color(255, 255, 255, 160);
 
 	/**
 	 * Default text color for detail overlays (Times New Roman).
@@ -233,17 +233,17 @@ public final class Render {
 	/**
 	 * Maximum width (in pixels) for a single square text overlay, derived from {@link #tileWidth}.
 	 */
-	private final int squareTextMaxWidth = (int) (tileWidth * 0.80);
+	private final int squareTextMaxWidth = (int) (tileWidth * 0.72);
 
 	/**
 	 * Maximum height (in pixels) for a single square text overlay, derived from {@link #tileHeight}.
 	 */
-	private final int squareTextMaxHeight = (int) (tileHeight * 0.40);
+	private final int squareTextMaxHeight = (int) (tileHeight * 0.33);
 
 	/**
 	 * Initial font size (in pixels) used when laying out square text; clamped to a minimum for readability.
 	 */
-	private final int squareTextStartingFontSize = Math.max(9, (int) (tileHeight * 0.28));
+	private final int squareTextStartingFontSize = Math.max(8, (int) (tileHeight * 0.25));
 
 	/**
 	 * Initial font size (in pixels) used when laying out detail text.
@@ -713,15 +713,38 @@ public final class Render {
 		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, prevTextAA);
 	}
 
-	private static boolean hasVisibleText(SquareText label) {
-		return label != null && label.text != null && !label.text.isBlank();
-	}
+		/**
+		 * Determines whether the provided square label contains text worth drawing.
+		 *
+		 * <p>A label is visible when it is not {@code null} and contains non-whitespace
+		 * characters.</p>
+		 *
+		 * @param label label to inspect
+		 * @return {@code true} when the label has non-blank text
+		 */
+		private static boolean hasVisibleText(SquareText label) {
+			return label != null && label.text != null && !label.text.isBlank();
+		}
 
-	private void drawSquareText(Graphics2D g, int boardX, int boardY, SquareText label, SquareTextStyle style,
-			TextLayout layout, IntPoint tile) {
-		String text = label.text;
-		int boardIndex = toSquareIndex(label.index);
-		byte piece = position.getBoard()[boardIndex];
+		/**
+		 * Renders a single square text item with its background box.
+		 *
+		 * <p>The method resolves styling, computes the tile origin, sizes the font,
+		 * and draws the background plus glyph in one pass.</p>
+		 *
+		 * @param g graphics context for drawing
+		 * @param boardX board origin x coordinate
+		 * @param boardY board origin y coordinate
+		 * @param label square text label descriptor
+		 * @param style reusable style object to write resolved colors into
+		 * @param layout reusable layout buffer for font metrics
+		 * @param tile reusable point used for tile coordinates
+		 */
+		private void drawSquareText(Graphics2D g, int boardX, int boardY, SquareText label, SquareTextStyle style,
+				TextLayout layout, IntPoint tile) {
+			String text = label.text;
+			int boardIndex = toSquareIndex(label.index);
+			byte piece = position.getBoard()[boardIndex];
 
 		resolveSquareTextStyle(label, piece, style);
 		tileOrigin(label.index, boardX, boardY, tile);
@@ -772,7 +795,16 @@ public final class Render {
 		g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, prevTextAA);
 	}
 
-	private void drawCoordinateGutters(Graphics2D g, FontMetrics fm, int boardX, int boardY, int gutter) {
+		/**
+		 * Draws file letters and rank numbers inside the border gutter.
+		 *
+		 * @param g graphics context to draw into
+		 * @param fm font metrics for the current font
+		 * @param boardX left edge of the board
+		 * @param boardY top edge of the board
+		 * @param gutter width of the gutter area in pixels
+		 */
+		private void drawCoordinateGutters(Graphics2D g, FontMetrics fm, int boardX, int boardY, int gutter) {
 		int topY = boardY - gutter;
 		int bottomY = boardY + boardHeight;
 		int yTop = topY + (gutter - fm.getHeight()) / 2 + fm.getAscent();
@@ -802,7 +834,15 @@ public final class Render {
 		}
 	}
 
-	private void drawInlineCoordinates(Graphics2D g, FontMetrics fm, int boardX, int boardY) {
+		/**
+		 * Draws coordinate labels over the edge squares themselves.
+		 *
+		 * @param g graphics context to draw into
+		 * @param fm font metrics for label sizing
+		 * @param boardX left edge of the board
+		 * @param boardY top edge of the board
+		 */
+		private void drawInlineCoordinates(Graphics2D g, FontMetrics fm, int boardX, int boardY) {
 		int pad = Math.max(2, fm.getAscent() / 5);
 		int bottomRow = 7;
 
@@ -823,7 +863,15 @@ public final class Render {
 		}
 	}
 
-	private void drawOutsideCoordinates(Graphics2D g, FontMetrics fm, int boardX, int boardY) {
+		/**
+		 * Draws coordinate labels outside the board area when requested.
+		 *
+		 * @param g graphics context to draw into
+		 * @param fm font metrics for sizing glyphs
+		 * @param boardX left edge of the board
+		 * @param boardY top edge of the board
+		 */
+		private void drawOutsideCoordinates(Graphics2D g, FontMetrics fm, int boardX, int boardY) {
 		double halfFont = g.getFont().getSize() / 2.0;
 		int halfTileW = tileWidth / 2;
 		int halfTileH = tileHeight / 2;
@@ -864,11 +912,27 @@ public final class Render {
 		}
 	}
 
-	private int coordinatePadding() {
-		return Math.max(16, tileWidth);
-	}
+		/**
+		 * Computes padding to apply around coordinate labels.
+		 *
+		 * @return padding in pixels for coordinate drawing regions
+		 */
+		private int coordinatePadding() {
+			return Math.max(16, tileWidth);
+		}
 
-	private void resolveSquareTextStyle(SquareText label, byte piece, SquareTextStyle out) {
+		/**
+		 * Resolves default colors when a square text label omits explicit styling.
+		 *
+		 * <p>Labels without an explicit palette inherit colors based on the occupying
+		 * piece, while fully specified labels keep their provided values. The resolved
+		 * colors are stored in the reusable {@link SquareTextStyle} to avoid allocations.</p>
+		 *
+		 * @param label label being rendered
+		 * @param piece piece code currently occupying the square
+		 * @param out style object to populate
+		 */
+		private void resolveSquareTextStyle(SquareText label, byte piece, SquareTextStyle out) {
 		if (label.background == null || label.textColor == null || label.border == null) {
 			if (Piece.isWhitePiece(piece)) {
 				out.textColor = DEFAULT_SQUARE_TEXT_WHITE_PIECE_TEXT;
@@ -891,14 +955,37 @@ public final class Render {
 		out.borderStroke = label.borderStroke != null ? label.borderStroke : DEFAULT_SQUARE_TEXT_STROKE;
 	}
 
-	private void tileOrigin(byte index, int boardX, int boardY, IntPoint out) {
+		/**
+		 * Computes the top-left pixel coordinate of a tile from the square index.
+		 *
+		 * <p>Accounts for the {@link #whiteSideDown} flag by flipping the horizontal
+		 * and vertical references so the rendered board matches the requested orientation.</p>
+		 *
+		 * @param index square index (0= A8)
+		 * @param boardX board origin x coordinate
+		 * @param boardY board origin y coordinate
+		 * @param out point to receive the coordinates
+		 */
+		private void tileOrigin(byte index, int boardX, int boardY, IntPoint out) {
 		int x = whiteSideDown ? Field.getX(index) : Field.getXInverted(index);
 		int y = whiteSideDown ? Field.getYInverted(index) : Field.getY(index);
 		out.x = boardX + x * tileWidth;
 		out.y = boardY + y * tileHeight;
 	}
 
-	private void fitSquareTextFont(Graphics2D g, String text, Font baseFont, TextLayout out) {
+		/**
+		 * Adjusts the font size for a square text label to fit within its tile.
+		 *
+		 * <p>The method measures the rendered width and height, shrinking the font in
+		 * one-point steps until the text fits within {@link #squareTextMaxWidth} and
+		 * {@link #squareTextMaxHeight} or a minimum size is reached.</p>
+		 *
+		 * @param g graphics context used for font metrics
+		 * @param text label text to measure
+		 * @param baseFont base font to start from
+		 * @param out layout buffer populated with measurement results
+		 */
+		private void fitSquareTextFont(Graphics2D g, String text, Font baseFont, TextLayout out) {
 		Font font = baseFont != null ? baseFont : squareTextBaseFont;
 		int fontSize = font.getSize();
 		FontMetrics fm = g.getFontMetrics(font);
@@ -919,8 +1006,22 @@ public final class Render {
 		out.textHeight = textHeight;
 	}
 
-	private void drawSquareTextBoxAndText(Graphics2D g, String text, int tileX, int tileY, SquareTextStyle style,
-			TextLayout layout) {
+		/**
+		 * Draws the rounded background box and the text for a square label.
+		 *
+		 * <p>The layout metrics include the computed font and text size, so this
+		 * method simply centers the box/text within the tile and strokes the rounding
+		 * using the resolved style.</p>
+		 *
+		 * @param g graphics context to draw into
+		 * @param text label text
+		 * @param tileX tile origin x coordinate
+		 * @param tileY tile origin y coordinate
+		 * @param style resolved style colors and stroke
+		 * @param layout layout metrics produced by {@link #fitSquareTextFont}
+		 */
+		private void drawSquareTextBoxAndText(Graphics2D g, String text, int tileX, int tileY, SquareTextStyle style,
+				TextLayout layout) {
 		int padX = Math.max(2, layout.fontSize / 4);
 		int padY = Math.max(1, layout.fontSize / 5);
 
@@ -1011,23 +1112,67 @@ public final class Render {
 			Stroke borderStroke, Font baseFont) {
 	}
 
-	private static final class SquareTextStyle {
-		private Color background;
-		private Color border;
-		private Color textColor;
-		private Stroke borderStroke;
-	}
+		/**
+		 * Reusable mutable holder for square text colors and strokes.
+		 * Keeps allocations low during the render loop.
+		 */
+		private static final class SquareTextStyle {
+			/**
+			 * Background fill color for the text box.
+			 */
+			private Color background;
+			/**
+			 * Border color for the text box outline.
+			 */
+			private Color border;
+			/**
+			 * Color used to draw the text glyph.
+			 */
+			private Color textColor;
+			/**
+			 * Stroke used when drawing the border.
+			 */
+			private Stroke borderStroke;
+		}
 
-	private static final class TextLayout {
-		private Font font;
-		private FontMetrics fm;
-		private int textWidth;
-		private int textHeight;
-		private int fontSize;
-	}
+		/**
+		 * Temporary layout metrics for square text strings.
+		 * Updated per label to track measured width, height, and font selection.
+		 */
+		private static final class TextLayout {
+			/**
+			 * Font chosen for the label.
+			 */
+			private Font font;
+			/**
+			 * Font metrics corresponding to {@link #font}.
+			 */
+			private FontMetrics fm;
+			/**
+			 * Measured width of the current text.
+			 */
+			private int textWidth;
+			/**
+			 * Measured height of the current text.
+			 */
+			private int textHeight;
+			/**
+			 * Rendered font size in points.
+			 */
+			private int fontSize;
+		}
 
-	private static final class IntPoint {
-		private int x;
-		private int y;
-	}
+		/**
+		 * Simple mutable point used for temporary tile origin calculations.
+		 */
+		private static final class IntPoint {
+			/**
+			 * X coordinate in pixels.
+			 */
+			private int x;
+			/**
+			 * Y coordinate in pixels.
+			 */
+			private int y;
+		}
 }

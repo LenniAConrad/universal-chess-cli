@@ -62,10 +62,15 @@ public class Game {
     private String result = "*";
 
     /**
-     * Used for adding or replacing a PGN tag while keeping insertion order.
+     * Adds or replaces a PGN header tag while preserving insertion order.
+     *
+     * <p>
+     * Null keys are ignored. Empty strings are permitted as values but {@code null}
+     * is converted to an empty string to ensure consistency.
+     * </p>
      *
      * @param key   PGN tag name (e.g. {@code Event})
-     * @param value tag value (may be empty but never null)
+     * @param value tag value (may be empty but never {@code null})
      */
     public void putTag(String key, String value) {
         if (key == null) {
@@ -75,31 +80,45 @@ public class Game {
     }
 
     /**
-     * Returns an ordered, unmodifiable view of all tags.
+     * Returns an unmodifiable, insertion-order view of all PGN tags.
+     *
+     * <p>The returned map reflects current tags without allowing callers to
+     * mutate the underlying storage.</p>
+     *
+     * @return unmodifiable tag map in insertion order
      */
     public Map<String, String> getTags() {
         return Collections.unmodifiableMap(tags);
     }
 
     /**
-     * Returns the starting position of this game. Defaults to the standard chess
-     * start.
+     * Returns the starting position of this game.
+     *
+     * <p>When no custom start is set, this defaults to the standard chess start.</p>
+     *
+     * @return starting position (never {@code null})
      */
     public Position getStartPosition() {
         return startPosition;
     }
 
     /**
-     * Replaces the starting position of this game. {@code null} resets to the
-     * standard start position.
+     * Replaces the starting position of this game.
+     *
+     * <p>Passing {@code null} resets the start to the standard FEN.</p>
+     *
+     * @param startPosition new starting position, or {@code null} for default
      */
     public void setStartPosition(Position startPosition) {
         this.startPosition = startPosition != null ? startPosition : new Position(STANDARD_START_FEN);
     }
 
     /**
-     * Returns the head node of the mainline, or {@code null} if the game has no
-     * moves.
+     * Returns the head node of the mainline.
+     *
+     * <p>Returns {@code null} when the game has no moves.</p>
+     *
+     * @return head of the mainline, or {@code null}
      */
     public Node getMainline() {
         return mainline;
@@ -107,14 +126,19 @@ public class Game {
 
     /**
      * Sets the head node of the mainline.
+     *
+     * @param mainline mainline head node, or {@code null} to clear
      */
     public void setMainline(Node mainline) {
         this.mainline = mainline;
     }
 
     /**
-     * Returns a read-only view of root-level variations that occur before any
-     * mainline move (rare but legal in PGN).
+     * Returns a read-only view of root-level variations.
+     *
+     * <p>These variations appear before any mainline move and are rare but legal in PGN.</p>
+     *
+     * @return unmodifiable list of root variations
      */
     public List<Node> getRootVariations() {
         return Collections.unmodifiableList(rootVariations);
@@ -122,6 +146,8 @@ public class Game {
 
     /**
      * Adds a root-level variation starting at the given node.
+     *
+     * @param variation variation node to register (ignored if {@code null})
      */
     public void addRootVariation(Node variation) {
         if (variation != null) {
@@ -130,8 +156,11 @@ public class Game {
     }
 
     /**
-     * Comments that appear before the first move (sometimes used for game-wide
-     * notes).
+     * Returns comments that appear before the first move.
+     *
+     * <p>These are commonly used for game-wide notes or metadata.</p>
+     *
+     * @return unmodifiable list of preamble comments
      */
     public List<String> getPreambleComments() {
         return Collections.unmodifiableList(preambleComments);
@@ -139,6 +168,8 @@ public class Game {
 
     /**
      * Adds a comment that appears before the first move.
+     *
+     * @param comment comment text to add (ignored when null/empty)
      */
     public void addPreambleComment(String comment) {
         if (comment != null && !comment.isEmpty()) {
@@ -147,15 +178,22 @@ public class Game {
     }
 
     /**
-     * Game result token (e.g. {@code 1-0}, {@code 0-1}, {@code 1/2-1/2}, or
-     * {@code *}).
+     * Returns the game result token.
+     *
+     * <p>Common values are {@code 1-0}, {@code 0-1}, {@code 1/2-1/2}, or {@code *}.</p>
+     *
+     * @return result token string
      */
     public String getResult() {
         return result;
     }
 
     /**
-     * Sets the game result token; null or empty resets it to {@code *}.
+     * Sets the game result token.
+     *
+     * <p>A null or empty value resets the result to {@code *}.</p>
+     *
+     * @param result result token to set, or {@code null} to reset
      */
     public void setResult(String result) {
         this.result = (result == null || result.isEmpty()) ? "*" : result;
@@ -208,6 +246,8 @@ public class Game {
 
         /**
          * SAN move text for this ply.
+         *
+         * @return SAN string for the move
          */
         public String getSan() {
             return san;
@@ -215,6 +255,8 @@ public class Game {
 
         /**
          * Mainline successor, or {@code null} if this is the final move in the line.
+         *
+         * @return next mainline node or {@code null}
          */
         public Node getNext() {
             return next;
@@ -222,6 +264,8 @@ public class Game {
 
         /**
          * Replaces the mainline successor of this node.
+         *
+         * @param next next node in the mainline, or {@code null} to terminate
          */
         public void setNext(Node next) {
             this.next = next;
@@ -229,6 +273,8 @@ public class Game {
 
         /**
          * Variations branching from this move (secondary lines).
+         *
+         * @return unmodifiable list of variation heads
          */
         public List<Node> getVariations() {
             return Collections.unmodifiableList(variations);
@@ -236,6 +282,8 @@ public class Game {
 
         /**
          * Adds a variation starting at {@code node}.
+         *
+         * @param node variation head node (ignored when {@code null})
          */
         public void addVariation(Node node) {
             if (node != null) {
@@ -245,6 +293,8 @@ public class Game {
 
         /**
          * Comments that appear immediately before this move.
+         *
+         * @return unmodifiable list of pre-move comments
          */
         public List<String> getCommentsBefore() {
             return Collections.unmodifiableList(commentsBefore);
@@ -252,6 +302,8 @@ public class Game {
 
         /**
          * Comments that appear immediately after this move.
+         *
+         * @return unmodifiable list of post-move comments
          */
         public List<String> getCommentsAfter() {
             return Collections.unmodifiableList(commentsAfter);
@@ -259,6 +311,8 @@ public class Game {
 
         /**
          * Adds a comment that appears before this move.
+         *
+         * @param comment comment text (ignored when {@code null} or empty)
          */
         public void addCommentBefore(String comment) {
             if (comment != null && !comment.isEmpty()) {
@@ -268,6 +322,8 @@ public class Game {
 
         /**
          * Adds a comment that appears after this move.
+         *
+         * @param comment comment text (ignored when {@code null} or empty)
          */
         public void addCommentAfter(String comment) {
             if (comment != null && !comment.isEmpty()) {
@@ -277,13 +333,17 @@ public class Game {
 
         /**
          * Numeric annotation glyphs attached to this move (e.g. $1 = good move).
+         *
+         * @return unmodifiable list of NAG codes
          */
         public List<Integer> getNags() {
             return Collections.unmodifiableList(nags);
         }
 
         /**
-         * Adds a numeric annotation glyph to this move.
+         * Adds a numeric annotation glyph (NAG) to this move.
+         *
+         * @param nag NAG code (e.g., {@code 1} = good move)
          */
         public void addNag(int nag) {
             nags.add(nag);

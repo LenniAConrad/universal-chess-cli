@@ -443,6 +443,10 @@ public class Converter {
     /**
      * Formats the evaluation of an {@link Output} for CSV.
      *
+     * <p>A mate score is prefixed with {@code '#'} so downstream consumers can
+     * differentiate finishing lines, while centipawn values are emitted
+     * verbatim.</p>
+     *
      * @param best output to inspect.
      * @return evaluation string ({@code #N} for mate, centipawns otherwise) or empty.
      */
@@ -549,12 +553,21 @@ public class Converter {
     }
 
     /**
-     * Commits a temp file: ensure parent dir exists, fsync the temp, then move it to {@code dest} (atomic when
-     * supported, else replace), and best-effort fsync the destination directory.
+     * Commits a temporary file by syncing it and atomically replacing the destination.
      *
-     * @param tmp  temporary file to commit.
-     * @param dest final destination path.
-     * @throws IOException if syncing or moving fails.
+     * <p>
+     * Steps:
+     * <ol>
+     * <li>Ensure the destination directory exists.</li>
+     * <li>Force the temp file to disk.</li>
+     * <li>Move the temp file into place (Atomic move when supported, fallback to replace).</li>
+     * <li>Attempt to sync the containing directory to make the move durable.</li>
+     * </ol>
+     * </p>
+     *
+     * @param tmp  temporary file to commit
+     * @param dest final destination path
+     * @throws IOException if syncing or moving fails
      */
     private static void finalizeOutput(Path tmp, Path dest) throws IOException {
         ensureParentDirs(dest);
@@ -582,9 +595,14 @@ public class Converter {
     }
 
     /**
-     * Silently cleans up temporary files.
+     * Deletes the temporary file without propagating I/O failures.
      *
-     * @param tmp path to delete.
+     * <p>
+     * Best-effort cleanup that logs nothing; used when an earlier error already
+     * caught the user's attention.
+     * </p>
+     *
+     * @param tmp path to delete
      */
     private static void cleanupTempQuietly(Path tmp) {
         try {
@@ -597,9 +615,14 @@ public class Converter {
     /**
      * Derives a new file path by replacing or appending a file extension.
      *
-     * @param input  original input path.
-     * @param newExt new file extension (including dot).
-     * @return new {@link Path} with updated extension.
+     * <p>
+     * If the input name already contains an extension, it is replaced; otherwise
+     * the new extension is appended.
+     * </p>
+     *
+     * @param input  original input path
+     * @param newExt new file extension (including dot)
+     * @return new {@link Path} with updated extension
      */
     private static Path deriveOutputPath(Path input, String newExt) {
         String name = input.getFileName().toString();
@@ -608,4 +631,3 @@ public class Converter {
         return input.resolveSibling(base + newExt);
     }
 }
-

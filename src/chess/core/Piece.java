@@ -297,10 +297,12 @@ public class Piece {
 
 	/**
 	 * Returns the material value of a given piece.
-	 * This method is used to evaluate the material balance of a position in chess.
-	 * 
-	 * @param piece
-	 * @return the material value of the piece
+	 *
+	 * <p>This method reflects the standard centipawn valuation used during
+	 * material evaluation passes, treating {@link #EMPTY} as zero.</p>
+	 *
+	 * @param piece the piece byte code to look up
+	 * @return the corresponding material value, or {@link #VALUE_EMPTY} when unknown
 	 */
 	public static int getValue(byte piece) {
 		switch (piece) {
@@ -355,6 +357,13 @@ public class Piece {
 		return piece < 0;
 	}
 
+	/**
+	 * Converts a piece code to its lower-case FEN character.
+	 * Returns a space for {@link #EMPTY} or unknown codes.
+	 *
+	 * @param piece piece code to convert
+	 * @return FEN character in lower-case form
+	 */
 	public static char toLowerCaseChar(byte piece) {
 		switch (piece) {
 			case WHITE_KING:
@@ -388,6 +397,13 @@ public class Piece {
 		}
 	}
 
+	/**
+	 * Converts a piece code to its upper-case FEN character.
+	 * Returns a space for {@link #EMPTY} or unknown codes.
+	 *
+	 * @param piece piece code to convert
+	 * @return FEN character in upper-case form
+	 */
 	public static char toUpperCaseChar(byte piece) {
 		switch (piece) {
 			case WHITE_KING:

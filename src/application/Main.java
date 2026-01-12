@@ -18,6 +18,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -576,6 +577,7 @@ public final class Main {
 	 * @param size        square window size fallback (0 means unset)
 	 * @param width       explicit window width (0 means unset)
 	 * @param height      explicit window height (0 means unset)
+	 * @param zoom        zoom multiplier applied after fit-to-window scaling
 	 * @param arrows      UCI moves to render as arrows
 	 * @param specialArrows whether to render castling/en passant arrows
 	 * @param details     whether to render coordinate labels inside the board
@@ -595,6 +597,7 @@ public final class Main {
 			int size,
 			int width,
 			int height,
+			double zoom,
 			List<String> arrows,
 			boolean specialArrows,
 			boolean details,
@@ -676,6 +679,7 @@ public final class Main {
 	 * <li>{@code --size <px>} — window size (square).</li>
 	 * <li>{@code --width <px>} and {@code --height <px>} — window size
 	 * override.</li>
+	 * <li>{@code --zoom <factor>} — zoom multiplier (1.0 = fit-to-window).</li>
 	 * <li>{@code --dark} or {@code --dark-mode} — use dark display window
 	 * styling.</li>
 	 * <li>{@code --verbose} or {@code -v} — also print stack traces on errors.</li>
@@ -703,6 +707,7 @@ public final class Main {
 				image = applyDropShadow(image);
 			}
 			Display display = new Display(image, windowWidth, windowHeight, opts.light());
+			display.setZoom(opts.zoom());
 			if (backendLabel != null) {
 				display.setTitle("Backend: " + backendLabel);
 			}
@@ -748,6 +753,7 @@ public final class Main {
 		int size = a.integerOr(0, OPT_SIZE);
 		int width = a.integerOr(0, OPT_WIDTH);
 		int height = a.integerOr(0, OPT_HEIGHT);
+		double zoom = parseZoomFactor(a.string(OPT_ZOOM));
 		List<String> arrows = a.strings(OPT_ARROW, OPT_ARROWS);
 		boolean specialArrows = a.flag(OPT_SPECIAL_ARROWS);
 		boolean details = a.flag(OPT_DETAILS_INSIDE);
@@ -772,6 +778,7 @@ public final class Main {
 				size,
 				width,
 				height,
+				zoom,
 				arrows,
 				specialArrows,
 				details,
@@ -815,70 +822,105 @@ public final class Main {
 	 * </ul>
 	 */
 	private static void runRenderImage(Argv a) {
-		RenderImageOptions opts = parseRenderImageOptions(a);
+		renderImageOrExit(parseRenderImageOptions(a));
+	}
 
-		if (opts.fen() == null || opts.fen().isEmpty()) {
-			System.err.println("render requires a FEN (" + MSG_FEN_REQUIRED_HINT + ")");
-			System.exit(2);
-			return;
-		}
-		if (opts.output() == null) {
-			System.err.println("render requires --output|-o <path>");
+	/**
+	 * Validates render options and performs the render, exiting on failure.
+	 * Maps validation and I/O errors to user-facing messages and status codes.
+	 *
+	 * @param opts parsed render options
+	 */
+	private static void renderImageOrExit(RenderImageOptions opts) {
+		String validationError = validateRenderImageOptions(opts);
+		if (validationError != null) {
+			System.err.println(validationError);
 			System.exit(2);
 			return;
 		}
 
 		try {
-			Position pos = new Position(opts.fen().trim());
-			Render render = createRender(pos, opts.whiteDown(), opts.showBorder(), opts.details(), opts.detailsOutside());
-			applyDisplayOverlays(render, pos, opts.arrows(), opts.circles(), opts.legal(), opts.specialArrows());
-			applyDisplayEvaluatorOverlays(render, pos, opts.showBackend(), opts.ablation());
-
-			BufferedImage image = render.render();
-			int outWidth = resolveWindowDimension(opts.width(), opts.size(), image.getWidth());
-			int outHeight = resolveWindowDimension(opts.height(), opts.size(), image.getHeight());
-			if (outWidth <= 0 || outHeight <= 0) {
-				throw new IllegalArgumentException("render size must be positive");
-			}
-			if (outWidth != image.getWidth() || outHeight != image.getHeight()) {
-				image = scaleImage(image, outWidth, outHeight);
-			}
-
-			String format = resolveImageFormat(opts.output(), opts.format());
-			Path out = ensureImageExtension(opts.output(), format);
-			ensureParentDir(out);
-
-			if (opts.shadow()) {
-				image = applyDropShadow(image);
-			}
-
-			BufferedImage toWrite = "jpg".equals(format) ? toOpaqueImage(image, Color.WHITE) : image;
-			if (!ImageIO.write(toWrite, format, out.toFile())) {
-				throw new IOException("No ImageIO writer for format: " + format);
-			}
-			System.out.println("Saved board image: " + out.toAbsolutePath());
+			renderImageToDisk(opts);
 		} catch (IllegalArgumentException ex) {
-			System.err.println("Error: invalid render input. " + (ex.getMessage() == null ? "" : ex.getMessage()));
-			LogService.error(ex, "render: invalid input", LOG_CTX_FEN_PREFIX + opts.fen());
-			if (opts.verbose()) {
-				ex.printStackTrace(System.err);
-			}
-			System.exit(3);
+			handleRenderFailure(opts, "Error: invalid render input. ", "render: invalid input", ex);
 		} catch (IOException ex) {
-			System.err.println("Error: failed to write image. " + (ex.getMessage() == null ? "" : ex.getMessage()));
-			LogService.error(ex, "render: failed to write image", LOG_CTX_FEN_PREFIX + opts.fen());
-			if (opts.verbose()) {
-				ex.printStackTrace(System.err);
-			}
-			System.exit(3);
-		} catch (Exception t) {
-			System.err.println("Error: failed to render image. " + (t.getMessage() == null ? "" : t.getMessage()));
-			LogService.error(t, "render: unexpected failure while rendering image", LOG_CTX_FEN_PREFIX + opts.fen());
-			if (opts.verbose()) {
-				t.printStackTrace(System.err);
-			}
-			System.exit(3);
+			handleRenderFailure(opts, "Error: failed to write image. ", "render: failed to write image", ex);
+		} catch (Exception ex) {
+			handleRenderFailure(opts, "Error: failed to render image. ", "render: unexpected failure while rendering image", ex);
 		}
+	}
+
+	/**
+	 * Validates required render inputs and returns a human-readable error.
+	 * Returns {@code null} when the options are acceptable.
+	 *
+	 * @param opts render options to validate
+	 * @return error message if invalid, otherwise {@code null}
+	 */
+	private static String validateRenderImageOptions(RenderImageOptions opts) {
+		if (opts.fen() == null || opts.fen().isEmpty()) {
+			return "render requires a FEN (" + MSG_FEN_REQUIRED_HINT + ")";
+		}
+		if (opts.output() == null) {
+			return "render requires --output|-o <path>";
+		}
+		return null;
+	}
+
+	/**
+	 * Renders the board image and writes it to disk.
+	 * Applies overlays, sizing adjustments, and output format selection.
+	 *
+	 * @param opts render options to apply
+	 * @throws IOException if the image cannot be written
+	 */
+	private static void renderImageToDisk(RenderImageOptions opts) throws IOException {
+		Position pos = new Position(opts.fen().trim());
+		Render render = createRender(pos, opts.whiteDown(), opts.showBorder(), opts.details(), opts.detailsOutside());
+		applyDisplayOverlays(render, pos, opts.arrows(), opts.circles(), opts.legal(), opts.specialArrows());
+		applyDisplayEvaluatorOverlays(render, pos, opts.showBackend(), opts.ablation());
+
+		BufferedImage image = render.render();
+		int outWidth = resolveWindowDimension(opts.width(), opts.size(), image.getWidth());
+		int outHeight = resolveWindowDimension(opts.height(), opts.size(), image.getHeight());
+		if (outWidth <= 0 || outHeight <= 0) {
+			throw new IllegalArgumentException("render size must be positive");
+		}
+		if (outWidth != image.getWidth() || outHeight != image.getHeight()) {
+			image = scaleImage(image, outWidth, outHeight);
+		}
+		if (opts.shadow()) {
+			image = applyDropShadow(image);
+		}
+
+		Path output = Objects.requireNonNull(opts.output(), "output");
+		String format = resolveImageFormat(output, opts.format());
+		Path out = Objects.requireNonNull(ensureImageExtension(output, format), "output");
+		ensureParentDir(out);
+
+		BufferedImage toWrite = "jpg".equals(format) ? toOpaqueImage(image, Color.WHITE) : image;
+		if (!ImageIO.write(toWrite, format, out.toFile())) {
+			throw new IOException("No ImageIO writer for format: " + format);
+		}
+		System.out.println("Saved board image: " + out.toAbsolutePath());
+	}
+
+	/**
+	 * Reports a render failure, logs details, and exits.
+	 * Optionally prints stack traces when verbose output is enabled.
+	 *
+	 * @param opts render options for contextual logging
+	 * @param userPrefix user-facing prefix for the error message
+	 * @param logMessage message to send to the logger
+	 * @param ex exception that triggered the failure
+	 */
+	private static void handleRenderFailure(RenderImageOptions opts, String userPrefix, String logMessage, Exception ex) {
+		System.err.println(userPrefix + (ex.getMessage() == null ? "" : ex.getMessage()));
+		LogService.error(ex, logMessage, LOG_CTX_FEN_PREFIX + opts.fen());
+		if (opts.verbose()) {
+			ex.printStackTrace(System.err);
+		}
+		System.exit(3);
 	}
 
 	/**
@@ -1046,6 +1088,27 @@ public final class Main {
 			return size;
 		}
 		return fallback;
+	}
+
+	/**
+	 * Parses the display zoom factor, defaulting to {@code 1.0} when unset.
+	 *
+	 * @param raw raw zoom string
+	 * @return parsed zoom factor
+	 */
+	private static double parseZoomFactor(String raw) {
+		if (raw == null || raw.isEmpty()) {
+			return 1.0;
+		}
+		try {
+			double zoom = Double.parseDouble(raw);
+			if (zoom <= 0.0) {
+				throw new IllegalArgumentException("display: " + OPT_ZOOM + " must be > 0");
+			}
+			return zoom;
+		} catch (NumberFormatException ex) {
+			throw new IllegalArgumentException("display: invalid " + OPT_ZOOM + " value: " + raw, ex);
+		}
 	}
 
 	/**
@@ -2151,6 +2214,16 @@ public final class Main {
 		}
 
 		/**
+		 * Increments the count for a key in the provided map.
+		 *
+		 * @param counts map to update
+		 * @param key    key to increment
+		 */
+		private void increment(Map<String, Long> counts, String key) {
+			counts.put(key, counts.getOrDefault(key, 0L) + 1L);
+		}
+
+		/**
 		 * Records analysis availability for the record.
 		 *
 		 * @param rec record to inspect
@@ -2212,47 +2285,59 @@ public final class Main {
 		 * @param top   number of top entries to include for engines/tags
 		 */
 		void printSummary(Path input, int top) {
-			System.out.println("Input: " + input.toAbsolutePath());
-			System.out.println("Records: " + total + " (invalid " + invalid + ")");
-			System.out.println("Positions: " + withPosition + " Parents: " + withParent);
-			System.out.println("Records with tags: " + withTags);
-			System.out.println("Analysis: " + withAnalysis + " Evals: " + withEval + " Mates: " + withMate);
+			final int labelWidth = 12;
+
+			printStat(labelWidth, "Input", input.toAbsolutePath().toString());
+			printStat(labelWidth, "Records", formatCount(total) + " (invalid " + formatCount(invalid) + ")");
+			printStat(labelWidth, "Positions", formatCount(withPosition) + " (parents " + formatCount(withParent) + ")");
+			printStat(labelWidth, "Tags", formatCount(withTags));
+			printStat(labelWidth, "Analysis",
+					formatCount(withAnalysis) + " (evals " + formatCount(withEval) + ", mates " + formatCount(withMate) + ")");
+
 			if (countCp > 0) {
 				double avg = sumCp / (double) countCp;
-				System.out.println("Eval cp: count=" + countCp
-						+ " avg=" + String.format("%+.1f", avg)
-						+ " min=" + formatSigned(minCp)
-						+ " max=" + formatSigned(maxCp));
+				printStat(labelWidth, "Eval (cp)",
+						"count " + formatCount(countCp)
+								+ " avg " + String.format(Locale.ROOT, "%+.1f", avg)
+								+ " min " + formatSigned(minCp)
+								+ " max " + formatSigned(maxCp));
 			} else {
-				System.out.println("Eval cp: n/a");
+				printStat(labelWidth, "Eval (cp)", "n/a");
 			}
+
 			if (withMate > 0) {
-				System.out.println("Eval mate: min=#" + minMate + " max=#" + maxMate);
+				printStat(labelWidth, "Eval (mate)", "min #" + minMate + " max #" + maxMate);
 			} else {
-				System.out.println("Eval mate: n/a");
+				printStat(labelWidth, "Eval (mate)", "n/a");
 			}
+
 			if (countDepth > 0) {
-				System.out.println("Depth avg: " + String.format("%.1f", sumDepth / (double) countDepth));
+				printStat(labelWidth, "Depth", "avg " + String.format(Locale.ROOT, "%.1f", sumDepth / (double) countDepth));
 			} else {
-				System.out.println("Depth avg: n/a");
+				printStat(labelWidth, "Depth", "n/a");
 			}
+
 			if (countNodes > 0) {
-				System.out.println("Nodes avg: " + String.format("%.1f", sumNodes / (double) countNodes));
+				printStat(labelWidth, "Nodes", "avg " + String.format(Locale.ROOT, "%,.1f", sumNodes / (double) countNodes));
 			} else {
-				System.out.println("Nodes avg: n/a");
+				printStat(labelWidth, "Nodes", "n/a");
 			}
-			System.out.println("Top engines: " + formatTopCounts(engineCounts, top));
-			System.out.println("Top tags: " + formatTopCounts(tagCounts, top));
+
+			printStat(labelWidth, "Top engines", formatTopCounts(engineCounts, top));
+			printStat(labelWidth, "Top tags", formatTopCounts(tagCounts, top));
 		}
 
-		/**
-		 * Increments a counter in a map by one.
-		 *
-		 * @param map counter map to update
-		 * @param key key to increment
-		 */
-		private static void increment(Map<String, Long> map, String key) {
-			map.put(key, map.getOrDefault(key, 0L) + 1L);
+			/**
+			 * Prints a single aligned statistic line to standard output.
+			 * Pads the label to the configured width for readability.
+			 *
+			 * @param labelWidth width to pad the label to
+			 * @param label label text to print
+			 * @param value formatted value to print
+			 */
+			private static void printStat(int labelWidth, String label, String value) {
+			String formatString = "%-" + labelWidth + "s: %s%n";
+			System.out.printf(formatString, label, value);
 		}
 	}
 
@@ -2277,9 +2362,20 @@ public final class Main {
 				sb.append(", ");
 			}
 			Map.Entry<String, Long> entry = entries.get(i);
-			sb.append(entry.getKey()).append('=').append(entry.getValue());
+			sb.append(entry.getKey()).append('=').append(formatCount(entry.getValue()));
 		}
 		return sb.toString();
+	}
+
+	/**
+	 * Formats a count with grouping separators for human-readable output.
+	 * Uses {@link Locale#ROOT} to keep output stable across locales.
+	 *
+	 * @param value count to format
+	 * @return formatted count string
+	 */
+	private static String formatCount(long value) {
+		return String.format(Locale.ROOT, "%,d", value);
 	}
 
 	/**
@@ -2411,35 +2507,39 @@ public final class Main {
 		}
 	}
 
+	/**
+	 * Prints the short help summary to standard output.
+	 * Shows the command list along with quick usage tips.
+	 */
 	private static void helpSummary() {
 		System.out.println(
 				"""
 						usage: ucicli <command> [options]
 
 						commands:
-						  record-to-plain  Convert .record JSON to .plain
-						  record-to-csv    Convert .record JSON to CSV (no .plain output)
-						  record-to-pgn    Convert .record JSON to PGN games
+						  record-to-plain   Convert .record JSON to .plain
+						  record-to-csv     Convert .record JSON to CSV (no .plain output)
+						  record-to-pgn     Convert .record JSON to PGN games
 						  record-to-dataset Convert .record JSON to NPY tensors (features/labels)
-						  stack-to-dataset Convert Stack-*.json puzzle dumps to NPY tensors
-						  cuda-info        Print CUDA JNI backend status
-						  gen-fens         Generate random legal FEN shards (standard + Chess960 mix)
-						  mine             Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
-						  print            Pretty-print a FEN
-						  display          Render a board image in a window
-						  render           Save a board image to disk
-						  config           Show/validate configuration
-						  stats            Summarize .record or puzzle dumps
-						  stats-tags       Summarize tag distributions
-						  tags             Generate tags for a FEN (or list)
-						  moves            List legal moves for a FEN
-						  analyze          Analyze a FEN with the engine
-						  bestmove         Print the best move for a FEN
-						  perft            Run perft on a FEN (movegen validation)
-						  pgn-to-fens      Convert PGN games to FEN lists
-						  eval             Evaluate a FEN with LC0 or classical (alias: evaluate)
-						  clean            Delete session cache/logs
-						  help             Show command help
+						  stack-to-dataset  Convert Stack-*.json puzzle dumps to NPY tensors
+						  cuda-info         Print CUDA JNI backend status
+						  gen-fens          Generate random legal FEN shards (standard + Chess960 mix)
+						  mine              Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
+						  print             Pretty-print a FEN
+						  display           Render a board image in a window
+						  render            Save a board image to disk
+						  config            Show/validate configuration
+						  stats             Summarize .record or puzzle dumps
+						  stats-tags        Summarize tag distributions
+						  tags              Generate tags for a FEN (or list)
+						  moves             List legal moves for a FEN
+						  analyze           Analyze a FEN with the engine
+						  bestmove          Print the best move for a FEN
+						  perft             Run perft on a FEN (movegen validation)
+						  pgn-to-fens       Convert PGN games to FEN lists
+						  eval              Evaluate a FEN with LC0 or classical (alias: evaluate)
+						  clean             Delete session cache/logs
+						  help              Show command help
 
 						tips:
 						  ucicli help <command>       Show help for one command
@@ -2447,10 +2547,20 @@ public final class Main {
 						""");
 	}
 
+	/**
+	 * Prints the full help text to standard output.
+	 * Includes per-command option blocks for the CLI.
+	 */
 	private static void helpFull() {
 		System.out.println(HELP_FULL_TEXT);
 	}
 
+	/**
+	 * Prints help for a single command or falls back to the summary.
+	 * Looks up the command section inside the full help text.
+	 *
+	 * @param command command name to display help for
+	 */
 	private static void helpCommand(String command) {
 		String marker = helpMarkerFor(command);
 		if (marker == null) {
@@ -2467,6 +2577,13 @@ public final class Main {
 		System.out.println("usage: ucicli " + command + " [options]\n\n" + section);
 	}
 
+	/**
+	 * Resolves the section marker used inside the full help text.
+	 * Returns {@code null} when the command is unknown.
+	 *
+	 * @param command command name to look up
+	 * @return marker line for the command, or {@code null} if not found
+	 */
 	private static String helpMarkerFor(String command) {
 		return switch (command) {
 			case CMD_RECORD_TO_PLAIN -> "record-to-plain options:";
@@ -2496,6 +2613,14 @@ public final class Main {
 		};
 	}
 
+	/**
+	 * Extracts a command-specific help block from the full help text.
+	 * Trims leading and trailing blank lines around the section.
+	 *
+	 * @param fullText full help text to search
+	 * @param marker marker line that begins the section
+	 * @return section text, or {@code null} if the marker is not found
+	 */
 	private static String extractHelpSection(String fullText, String marker) {
 		String[] lines = fullText.split("\n", -1);
 		int start = -1;
@@ -2525,6 +2650,10 @@ public final class Main {
 		return String.join("\n", Arrays.copyOfRange(lines, start, end));
 	}
 
+	/**
+	 * Full help text used by the {@code help} command.
+	 * Contains per-command option blocks for the CLI.
+	 */
 	private static final String HELP_FULL_TEXT =
 			"""
 						usage: ucicli <command> [options]
@@ -2635,6 +2764,7 @@ public final class Main {
 						  --size <px>                 Window size (square)
 						  --width <px>                Window width override
 						  --height <px>               Window height override
+						  --zoom <factor>             Zoom multiplier (1.0 = fit-to-window)
 						  --dark|--dark-mode          Use dark display window styling
 						  --verbose|-v                Print stack trace on failure
 
@@ -3224,7 +3354,15 @@ public final class Main {
 	 * Used for grouping output target paths for puzzles and non-puzzles.
 	 */
 	private static final class OutputTargets {
+		/**
+		 * Output path for puzzle JSONL data.
+		 * Written incrementally during mining.
+		 */
 		Path puzzles;
+		/**
+		 * Output path for non-puzzle JSONL data.
+		 * Written incrementally alongside puzzle outputs.
+		 */
 		Path nonpuzzles;
 
 		/**

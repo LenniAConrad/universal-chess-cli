@@ -39,12 +39,38 @@ import utility.Json;
  */
 public final class RecordDatasetExporter {
 
+	/**
+	 * Feature vector length per position (781 floats).
+	 * Combines piece planes, castling, en-passant, and side-to-move features.
+	 */
 	private static final int INPUTS = 64 * 12 + 4 + 8 + 1; // 781
+	/**
+	 * Regex for extracting score kind/value from Stack analysis lines.
+	 * Matches both centipawn and mate evaluations.
+	 */
 	private static final Pattern STACK_SCORE_RE = Pattern.compile("score\\s+(cp|mate)\\s+(-?\\d+)");
+	/**
+	 * Regex for extracting depth from Stack analysis lines.
+	 * Used to pick the deepest multipv=1 line.
+	 */
 	private static final Pattern STACK_DEPTH_RE = Pattern.compile("depth\\s+(\\d+)");
 
+	/**
+	 * Strategy interface for exporting a JSON object into feature/label rows.
+	 * Allows reuse of streaming logic across different input formats.
+	 */
 	@FunctionalInterface
 	private interface JsonObjectExporter {
+		/**
+		 * Exports a parsed JSON object into the feature/label writers.
+		 * Implementations may skip rows by returning without writing.
+		 *
+		 * @param obj JSON object text
+		 * @param featsBuf reusable feature buffer
+		 * @param feat feature writer
+		 * @param lab label writer
+		 * @throws IOException if writing fails
+		 */
 		void export(String obj, float[] featsBuf, NpyFloat32Writer feat, NpyFloat32Writer lab) throws IOException;
 	}
 
@@ -54,6 +80,14 @@ public final class RecordDatasetExporter {
 	private RecordDatasetExporter() {
 	}
 
+	/**
+	 * Exports a {@code .record} JSON array into NPY feature/label tensors.
+	 * Writes sibling {@code .features.npy} and {@code .labels.npy} files.
+	 *
+	 * @param recordFile input record JSON array file
+	 * @param outStem output stem path
+	 * @throws IOException if reading or writing fails
+	 */
 	public static void export(Path recordFile, Path outStem) throws IOException {
 		if (recordFile == null || outStem == null) {
 			throw new IllegalArgumentException("recordFile and outStem must be non-null");
@@ -91,6 +125,25 @@ public final class RecordDatasetExporter {
 		exportInternal(jsonFile, outStem, RecordDatasetExporter::exportStackObject);
 	}
 
+	/**
+	 * Streams a JSON array file and writes feature/label rows via the exporter.
+	 *
+	 * <p>
+	 * The method opens both {@code .features.npy} and {@code .labels.npy} with
+	 * placeholder headers, then iterates each top-level JSON object, letting the
+	 * {@link JsonObjectExporter} implementation decide whether to emit a row.
+	 * </p>
+	 *
+	 * <p>
+	 * When the exporter throws, the partially written files are deleted to avoid
+	 * leaving corrupt artifacts.
+	 * </p>
+	 *
+	 * @param jsonFile input JSON array file
+	 * @param outStem output stem path
+	 * @param exporter object-to-row exporter implementation
+	 * @throws IOException if reading or writing fails
+	 */
 	private static void exportInternal(Path jsonFile, Path outStem, JsonObjectExporter exporter) throws IOException {
 		Path featPath = outStem.resolveSibling(outStem.getFileName().toString() + ".features.npy");
 		Path labPath = outStem.resolveSibling(outStem.getFileName().toString() + ".labels.npy");
@@ -122,6 +175,16 @@ public final class RecordDatasetExporter {
 		}
 	}
 
+	/**
+	 * Exports a single record object into the feature/label writers.
+	 * Skips records that are missing required position or evaluation data.
+	 *
+	 * @param json JSON object text
+	 * @param featsBuf reusable feature buffer
+	 * @param feat feature writer
+	 * @param lab label writer
+	 * @throws IOException if writing fails
+	 */
 	private static void exportRecordObject(String json, float[] featsBuf, NpyFloat32Writer feat, NpyFloat32Writer lab)
 			throws IOException {
 		Record rec = Record.fromJson(json);
@@ -146,6 +209,16 @@ public final class RecordDatasetExporter {
 		lab.writeScalar(pawns);
 	}
 
+	/**
+	 * Exports a single stack dump object into the feature/label writers.
+	 * Skips entries that do not parse to a valid position or evaluation.
+	 *
+	 * @param obj JSON object text
+	 * @param featsBuf reusable feature buffer
+	 * @param feat feature writer
+	 * @param lab label writer
+	 * @throws IOException if writing fails
+	 */
 	private static void exportStackObject(String obj, float[] featsBuf, NpyFloat32Writer feat, NpyFloat32Writer lab)
 			throws IOException {
 		String posFen = Json.parseStringField(obj, "position");
@@ -177,6 +250,9 @@ public final class RecordDatasetExporter {
 	 * is converted into pawn units and clamped to [-20, 20]. If no valid score is
 	 * found, returns {@link Float#NaN}.
 	 * </p>
+	 *
+	 * @param analysis array of UCI output lines
+	 * @return best evaluation in pawns, or {@link Float#NaN} if none
 	 */
 	private static float selectBestStackEval(String[] analysis) {
 		if (analysis == null || analysis.length == 0) {
@@ -197,6 +273,13 @@ public final class RecordDatasetExporter {
 		return best;
 	}
 
+	/**
+	 * Parses a single stack analysis line into depth and pawn value.
+	 * Returns {@code null} when the line does not match expected patterns.
+	 *
+	 * @param line raw UCI output line
+	 * @return parsed stack evaluation, or {@code null} if not applicable
+	 */
 	private static StackEval parseStackEvalLine(String line) {
 		if (line == null || !line.contains("multipv 1")) {
 			return null;
@@ -229,8 +312,20 @@ public final class RecordDatasetExporter {
 		return new StackEval(depth, pawns);
 	}
 
+	/**
+	 * Parsed stack evaluation containing depth and pawn value.
+	 * Used to compare and select the best analysis line.
+	 */
 	private static final class StackEval {
+		/**
+		 * Search depth reported by the engine.
+		 * Used to pick the deepest line.
+		 */
 		private final int depth;
+		/**
+		 * Evaluation value in pawns after conversion/clamping.
+		 * Used as the training label.
+		 */
 		private final float pawns;
 
 		/**
@@ -245,15 +340,45 @@ public final class RecordDatasetExporter {
 		}
 	}
 
+	/**
+	 * Converts a centipawn score into pawns and clamps to [-20, 20].
+	 * Used for stable training targets.
+	 *
+	 * @param centipawns evaluation in centipawns
+	 * @return evaluation in pawns, clamped to [-20, 20]
+	 */
 	private static float pawnsFromCp(int centipawns) {
 		return clamp(centipawns / 100.0f, -20.0f, 20.0f);
 	}
 
+	/**
+	 * Converts a mate score to a signed capped pawn value.
+	 * Positive values favor the side to move, negative values the opponent.
+	 *
+	 * @param mateValue mate score reported by the engine
+	 * @return capped pawn value for mate outcomes
+	 */
 	private static float pawnsFromMate(int mateValue) {
 		int sign = mateValue >= 0 ? 1 : -1;
 		return 20.0f * sign;
 	}
 
+	/**
+	 * Encodes a position into the provided feature buffer.
+	 * Writes piece planes, castling rights, en-passant file, and side-to-move.
+	 *
+	 * <p>The buffer layout is:
+	 * <ol>
+	 * <li>12 piece planes (one-hot per square).</li>
+	 * <li>Four castling rights (white/black, kingside/queenside).</li>
+	 * <li>Eight en-passant file indicators (rank is implicit).</li>
+	 * <li>Side-to-move encoded as +1 for White, -1 for Black.</li>
+	 * </ol>
+	 * </p>
+	 *
+	 * @param position position to encode
+	 * @param feats destination feature buffer
+	 */
 	private static void encodeInto(Position position, float[] feats) {
 		Arrays.fill(feats, 0.0f);
 
@@ -282,6 +407,13 @@ public final class RecordDatasetExporter {
 		feats[idx] = position.isWhiteTurn() ? 1.0f : -1.0f;
 	}
 
+	/**
+	 * Maps a piece code to the channel index in the feature vector.
+	 * Returns {@code -1} for empty or unsupported pieces.
+	 *
+	 * @param piece piece code from the board array
+	 * @return channel index, or {@code -1} when not applicable
+	 */
 	private static int channel(byte piece) {
 		return switch (piece) {
 		case Piece.WHITE_PAWN -> 0;
@@ -300,6 +432,15 @@ public final class RecordDatasetExporter {
 		};
 	}
 
+	/**
+	 * Clamps a value to the provided inclusive range.
+	 * Used to keep training targets bounded.
+	 *
+	 * @param v value to clamp
+	 * @param lo lower bound
+	 * @param hi upper bound
+	 * @return clamped value
+	 */
 	private static float clamp(float v, float lo, float hi) {
 		if (v < lo) {
 			return lo;
@@ -315,27 +456,87 @@ public final class RecordDatasetExporter {
 	 * the row count in-place on close. Constant memory.
 	 */
 	private static final class NpyFloat32Writer implements Closeable {
-		// Keep this fairly large so you never exceed it even for huge datasets.
+		/**
+		 * Width of the row-count placeholder field in the header.
+		 * Keeps header patching stable even for very large datasets.
+		 */
 		private static final int ROWS_FIELD_WIDTH = 20;
 
+		/**
+		 * Random-access file backing the output.
+		 * Used to patch the header on close.
+		 */
 		private final RandomAccessFile raf;
+		/**
+		 * File channel used for streaming writes.
+		 * Keeps payload writes efficient and sequential.
+		 */
 		private final FileChannel ch;
+		/**
+		 * Whether the output is one-dimensional (labels).
+		 * Controls header shape and write behavior.
+		 */
 		private final boolean oneD;
+		/**
+		 * Column count for 2D outputs (features).
+		 * Ignored for 1D label outputs.
+		 */
 		private final int cols;
 
+		/**
+		 * Offset in the file where the row-count digits begin.
+		 * Used to patch the placeholder on close.
+		 */
 		private final long rowsFieldOffsetInFile; // where the rows digits/spaces begin
+		/**
+		 * Width of the row-count field in the header.
+		 * Matches the placeholder length.
+		 */
 		private final int rowsFieldWidth;
 
+		/**
+		 * Reusable buffer for writing full feature rows.
+		 * Avoids per-row allocations.
+		 */
 		private final ByteBuffer rowBuf;
+		/**
+		 * Reusable buffer for writing scalar labels.
+		 * Avoids per-write allocations.
+		 */
 		private final ByteBuffer scalarBuf;
 
+		/**
+		 * Number of rows written so far.
+		 * Incremented after each successful write.
+		 */
 		private long rows = 0;
+		/**
+		 * Whether the writer has been closed.
+		 * Prevents double-close operations.
+		 */
 		private boolean closed = false;
 
+		/**
+		 * Opens a 2D writer for feature rows.
+		 * Uses the provided column count for the header shape.
+		 *
+		 * @param path output file path
+		 * @param cols number of columns per row
+		 * @return new writer instance
+		 * @throws IOException if the file cannot be created
+		 */
 		static NpyFloat32Writer open2D(Path path, int cols) throws IOException {
 			return new NpyFloat32Writer(path, false, cols);
 		}
 
+		/**
+		 * Opens a 1D writer for scalar labels.
+		 * Writes a single-column shape in the header.
+		 *
+		 * @param path output file path
+		 * @return new writer instance
+		 * @throws IOException if the file cannot be created
+		 */
 		static NpyFloat32Writer open1D(Path path) throws IOException {
 			return new NpyFloat32Writer(path, true, -1);
 		}
@@ -434,6 +635,13 @@ public final class RecordDatasetExporter {
 			this.scalarBuf = localScalarBuf;
 		}
 
+		/**
+		 * Writes a single feature row to the output file.
+		 * Increments the row count after a successful write.
+		 *
+		 * @param row feature row to write
+		 * @throws IOException if writing fails
+		 */
 		void writeRow(float[] row) throws IOException {
 			if (oneD) {
 				throw new IllegalStateException("This writer is 1D; use writeScalar()");
@@ -453,6 +661,13 @@ public final class RecordDatasetExporter {
 			rows++;
 		}
 
+		/**
+		 * Writes a single scalar label to the output file.
+		 * Increments the row count after a successful write.
+		 *
+		 * @param v scalar value to write
+		 * @throws IOException if writing fails
+		 */
 		void writeScalar(float v) throws IOException {
 			scalarBuf.clear();
 			scalarBuf.putFloat(v);
@@ -463,6 +678,12 @@ public final class RecordDatasetExporter {
 			rows++;
 		}
 
+		/**
+		 * Patches the header with the final row count and closes the file.
+		 * Ensures the NPY header stays consistent with the written payload.
+		 *
+		 * @throws IOException if flushing or closing fails
+		 */
 		@Override
 		public void close() throws IOException {
 			if (closed) return;
@@ -506,6 +727,14 @@ public final class RecordDatasetExporter {
 			}
 		}
 
+		/**
+		 * Pads a numeric value with leading spaces to a fixed width.
+		 * Used for the NPY header row-count placeholder.
+		 *
+		 * @param value value to format
+		 * @param width field width to pad to
+		 * @return padded string representation
+		 */
 		private static String padLeft(long value, int width) {
 			String s = Long.toString(value);
 			int pad = width - s.length();

@@ -196,6 +196,13 @@ public final class PgnOps {
 				? game.getStartPosition().copyOf()
 				: new Position(Game.STANDARD_START_FEN);
 
+		/**
+		 * Work item pairing a PGN node with its current position.
+		 * Used to traverse variations without recursion.
+		 *
+		 * @param node node to process
+		 * @param pos position at the node
+		 */
 		record Work(Game.Node node, Position pos) {
 		}
 

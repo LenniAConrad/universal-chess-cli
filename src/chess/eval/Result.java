@@ -27,6 +27,16 @@ import chess.classical.Wdl;
  * @author Lennart A. Conrad
  */
 public record Result(Backend backend, Wdl wdl, double value, Integer centipawns) {
+    /**
+     * Validates the evaluation result components.
+     *
+     * @param backend backend used for this evaluation
+     * @param wdl WDL triplet (scaled to sum to 1000)
+     * @param value scalar value from the side-to-move perspective (typically in [-1,+1])
+     * @param centipawns optional centipawn estimate (side-to-move perspective), or {@code null}
+     * @throws IllegalArgumentException if {@code backend} or {@code wdl} is {@code null},
+     *                                  or {@code value} is not finite
+     */
     public Result {
         if (backend == null) {
             throw new IllegalArgumentException("backend == null");
@@ -39,4 +49,3 @@ public record Result(Backend backend, Wdl wdl, double value, Integer centipawns)
         }
     }
 }
-

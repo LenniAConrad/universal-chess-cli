@@ -64,6 +64,9 @@ public final class Reader {
    * Reads a UTF-8 text file where each non-empty line is a FEN string.
    * Lines starting with '#' or '//' are treated as comments and skipped.
    *
+   * <p>The parser tolerates stray whitespace and ignores blank/comment lines
+   * so that auxiliary files can include human-readable notes in addition to FENs.</p>
+   *
    * @param path the path to the text file
    * @return an immutable list of FEN strings in file order; empty if the file is missing/empty
    * @throws IOException if an I/O error occurs while reading
@@ -127,6 +130,13 @@ public final class Reader {
     return records;
   }
 
+  /**
+   * Extracts valid FENs from a whitespace-separated line.
+   * Returns only windows that parse successfully as full FEN strings.
+   *
+   * @param line input line to scan
+   * @return list of detected FEN strings (possibly empty)
+   */
   private static List<String> extractFens(String line) {
     if (line == null || line.isEmpty()) {
       return List.of();
@@ -164,6 +174,14 @@ public final class Reader {
     return stack;
   }
 
+  /**
+   * Reads a FEN list file and returns parsed {@link Position} instances.
+   * Invalid FENs are skipped without failing the entire read.
+   *
+   * @param path path to the FEN list file
+   * @return list of parsed positions
+   * @throws IOException if an I/O error occurs while reading
+   */
   public static List<Position> readPositionList(Path path) throws IOException {
     List<String> fenList = readFenList(path);
     List<Position> positions = new ArrayList<>(fenList.size());

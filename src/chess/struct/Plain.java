@@ -108,17 +108,14 @@ public final class Plain {
     private static final String KEY_END = "e";
 
     /**
-     * Convert an {@link Evaluation} to the plain integer {@code score}.
-     *
-     * <ul>
-     * <li>Centipawns: returned unchanged.</li>
-     * <li>Mate: encode as {@code sign * (VALUE_MATE - |pliesToMate|)},
-     * where sign is {@code +1} if STM mates, {@code -1} otherwise.</li>
-     * </ul>
+     * Converts an {@link Evaluation} into the integer {@code score} emitted in the
+     * plain block.
      *
      * <p>
-     * Examples: {@code "#3" -> 31997}, {@code "#-2" -> -31998},
-     * {@code "123" -> 123}.
+     * Centipawn evaluations are returned verbatim, while mate indications are
+     * encoded as {@code sign * (VALUE_MATE - |pliesToMate|)} so earlier mates
+     * sort ahead of later ones. Examples: {@code "#3" -> 31997},
+     * {@code "#-2" -> -31998}, {@code "123" -> 123}.
      * </p>
      *
      * @param eval non-null, valid evaluation
@@ -141,16 +138,15 @@ public final class Plain {
     }
 
     /**
-     * Compute ply-from-start from a {@link Position} that has a trustworthy
-     * fullmove number and standard initial origin.
+     * Computes the half-move count (ply) from the start position.
      *
      * <p>
-     * Formula:
-     * {@code ply = 2 * (fullmove - 1) + (stm == black ? 1 : 0)}.
+     * The formula is {@code 2 * (fullmove - 1) + (stm == black ? 1 : 0)} and
+     * assumes the position reports a valid fullmove number.
      * </p>
      *
      * @param pos non-null position
-     * @return half-move index (0 for the initial position)
+     * @return half-move index (0 for the initial start position)
      * @throws NullPointerException if {@code pos} is null
      */
     private static int toPly(Position pos) {
@@ -159,15 +155,18 @@ public final class Plain {
     }
 
     /**
-     * Maps an engine {@link Evaluation} to {-1,0,1} for the side-to-move.
-     * Mates are decisive (use sign). Centipawns in
-     * [-DRAW_DEADZONE_CP, +DRAW_DEADZONE_CP] → 0; otherwise use sign.
-     * Guarantees {@code cp == 0 ⇒ 0}.
+     * Maps an engine {@link Evaluation} into {@code -1}, {@code 0}, or {@code 1} from the
+     * side-to-move perspective.
      *
-     * @param eval non-null evaluation (centipawns unless
-     *             {@link Evaluation#isMate()}).
-     * @return {@code 1} win, {@code 0} draw, {@code -1} loss (STM perspective).
-     * @throws IllegalArgumentException if {@code eval == null}.
+     * <p>
+     * Mate evaluations follow the sign, centipawns within
+     * {@code [-DRAW_DEADZONE_CP, +DRAW_DEADZONE_CP]} become draws, and other cp
+     * values choose a winner by sign.
+     * </p>
+     *
+     * @param eval non-null evaluation (centipawns unless {@link Evaluation#isMate()})
+     * @return {@code 1} win, {@code 0} draw, {@code -1} loss (STM perspective)
+     * @throws IllegalArgumentException if {@code eval == null}
      */
     private static int toResult(Evaluation eval) {
         if (eval == null) {
@@ -277,7 +276,7 @@ public final class Plain {
      *
      * @param sample non-null {@link Record} holding the position and analysis
      * @return plain-encoded text block for this record
-     * @throws NullPointerException if {@code record} or any required component is
+     * @throws NullPointerException if {@code sample} or any required component is
      *                              null
      */
     public static String export(Record sample) {

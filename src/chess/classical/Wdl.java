@@ -119,11 +119,11 @@ public record Wdl(short win, short draw, short loss) {
      * <p>
      * Indexing matches the internal board: {@code 0 == A8} ... {@code 63 == H1}.
      * For Black pieces, squares are flipped vertically via {@link #flip(int)}.
+     * Values are deliberately small because the WDL mapping is coarse and we want
+     * stability.
      * Units: centipawns.
      * </p>
      */
-    // Simple piece-square tables (from White perspective, A8..H1 indices).
-    // Values are deliberately small: WDL mapping is coarse and we want stability.
     private static final int[] PAWN_PST = {
             0, 0, 0, 0, 0, 0, 0, 0,
             10, 12, 12, 14, 14, 12, 12, 10,
@@ -253,6 +253,7 @@ public record Wdl(short win, short draw, short loss) {
      * @param win win probability scaled to {@link #TOTAL}
      * @param draw draw probability scaled to {@link #TOTAL}
      * @param loss loss probability scaled to {@link #TOTAL}
+     * @throws IllegalArgumentException if any value is negative or the sum is not {@link #TOTAL}
      */
     public Wdl {
         if (win < 0 || draw < 0 || loss < 0 || (win + draw + loss) != TOTAL) {
@@ -270,6 +271,7 @@ public record Wdl(short win, short draw, short loss) {
      *
      * @param pos position to evaluate (non-null)
      * @return WDL triplet from the side-to-move perspective, summing to {@code 1000}
+     * @throws IllegalArgumentException if {@code pos} is {@code null}
      */
     public static Wdl evaluate(Position pos) {
         return evaluate(pos, false);
@@ -281,6 +283,7 @@ public record Wdl(short win, short draw, short loss) {
      * @param pos            position to evaluate (non-null)
      * @param terminalAware  if true, detects checkmate/stalemate via move generation
      * @return WDL triplet from the side-to-move perspective, summing to {@code 1000}
+     * @throws IllegalArgumentException if {@code pos} is {@code null}
      */
     public static Wdl evaluate(Position pos, boolean terminalAware) {
         if (pos == null) {
@@ -347,6 +350,7 @@ public record Wdl(short win, short draw, short loss) {
      *
      * @param pos position to evaluate (non-null)
      * @return centipawn score from the side-to-move perspective
+     * @throws IllegalArgumentException if {@code pos} is {@code null}
      */
     public static int evaluateStmCentipawns(Position pos) {
         if (pos == null) {
@@ -368,6 +372,7 @@ public record Wdl(short win, short draw, short loss) {
      *
      * @param pos position to evaluate (non-null)
      * @return centipawn score from White's perspective
+     * @throws IllegalArgumentException if {@code pos} is {@code null}
      */
     public static int evaluateWhiteCentipawns(Position pos) {
         if (pos == null) {

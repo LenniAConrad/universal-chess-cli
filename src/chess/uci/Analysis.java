@@ -17,7 +17,7 @@ import chess.core.Move;
  * @see Output
  * @see Engine
  * @since 2023
- * author Lennart A. Conrad
+ * @author Lennart A. Conrad
  */
 public class Analysis {
 
@@ -35,10 +35,10 @@ public class Analysis {
 	private boolean completed = false;
 
 	/**
-	 * Used for marking this analysis as already analyzed to allow skipping engine evaluation.
+	 * Marks this analysis as completed so callers can skip redundant engine runs.
 	 *
-	 * @param completed whether the analysis has been completed
-	 * @return itself for chaining
+	 * @param completed whether the analysis has already been completed
+	 * @return this {@code Analysis} instance for chaining
 	 */
 	public Analysis setCompleted(boolean completed) {
 		this.completed = completed;
@@ -46,19 +46,24 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for knowing if the {@code Analysis} has already been analyzed.
+	 * Checks whether the analysis has been marked as completed.
 	 *
-	 * @return {@code true} if it has already been analyzed, else {@code false}
+	 * @return {@code true} if this analysis contains finalized results
 	 */
 	public boolean isCompleted() {
 		return completed;
 	}
 
 	/**
-	 * Used for parsing and adding multiple engine output lines to this analysis.
+	 * Parses and adds multiple engine output lines to this analysis.
 	 *
-	 * @param string the array of engine/UCI output lines to parse; must not be {@code null}
-	 * @return itself for chaining
+	 * <p>
+	 * Each string is parsed into an {@link Output}, and the valid ones are inserted
+	 * into the PV/depth grid.
+	 * </p>
+	 *
+	 * @param string array of engine/UCI output lines to parse; must not be {@code null}
+	 * @return this analysis instance for chaining
 	 */
 	public Analysis addAll(String[] string) {
 		for (int i = 0; i < string.length; i++) {
@@ -68,10 +73,10 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for adding multiple {@code Output} instances to this analysis.
+	 * Adds multiple {@link Output} instances into the PV/depth grid.
 	 *
-	 * @param output the array of {@code Output} items to add; must not be {@code null}
-	 * @return itself for chaining
+	 * @param output array of {@code Output} items to add; must not be {@code null}
+	 * @return this analysis instance for chaining
 	 */
 	public Analysis addAll(Output[] output) {
 		for (int i = 0; i < output.length; i++) {
@@ -81,10 +86,10 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for parsing and adding a single engine output line to this analysis.
+	 * Parses and adds a single engine output line.
 	 *
-	 * @param string the engine/UCI output line to parse; must not be {@code null}
-	 * @return itself for chaining
+	 * @param string engine/UCI output line to parse; must not be {@code null}
+	 * @return this analysis instance for chaining
 	 */
 	public Analysis add(String string) {
 		add(new Output(string));
@@ -92,10 +97,10 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for adding a single {@code Output} instance into the PV/depth grid.
+	 * Inserts a single {@link Output} into the principal-variation grid.
 	 *
-	 * @param output the {@code Output} to add; ignored if not valid
-	 * @return itself for chaining
+	 * @param output {@code Output} instance to record; invalid outputs are ignored
+	 * @return this analysis instance for chaining
 	 */
 	public Analysis add(Output output) {
 		if (!output.hasContent()) {
@@ -114,10 +119,9 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for retrieving the last {@code Output} of the deepest principal variation, or null if
-	 * none.
+	 * Retrieves the last {@code Output} from the deepest principal variation available.
 	 *
-	 * @return the worst (deepest) {@code Output}, or null if unavailable
+	 * @return deepest {@code Output}, or {@code null} if none stored
 	 */
 	public Output getWorstOutput() {
 		if (pvOutputs.isEmpty()) {
@@ -136,20 +140,19 @@ public class Analysis {
 	}
 
 	/**
-	 * Used as a shortcut to retrieve the last {@code Output} of the first principal variation.
+	 * Shortcut to fetch the latest {@code Output} from the first principal variation.
 	 *
-	 * @return the greatest {@code Output} from the first principal variation, or null if unavailable
+	 * @return greatest {@code Output} from PV1, or {@code null} if unavailable
 	 */
 	public Output getBestOutput() {
 		return getBestOutput(1);
 	}
 
 	/**
-	 * Used for retrieving the last {@code Output} of the given principal variation, or null if not
-	 * available.
+	 * Retrieves the last {@code Output} for the specified principal variation index.
 	 *
-	 * @param principalVariation the principal variation index (1-based)
-	 * @return the last {@code Output} of the specified principal variation, or null if unavailable
+	 * @param principalVariation principal variation index (1-based)
+	 * @return last {@code Output} for that PV, or {@code null} if out of range
 	 */
 	public Output getBestOutput(int principalVariation) {
 		if (principalVariation < 1 || principalVariation > pvOutputs.size()) {
@@ -168,12 +171,11 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for retrieving the {@code Output} at the specified depth and principal variation, or
-	 * null if out of range.
+	 * Retrieves the {@code Output} stored at the given depth/PV coordinates.
 	 *
-	 * @param depth the depth index within the principal variation
-	 * @param principalVariation the principal variation index (1-based)
-	 * @return the {@code Output} at the specified location, or null if out of bounds
+	 * @param depth depth index within the principal variation (0-based)
+	 * @param principalVariation principal variation index (1-based)
+	 * @return {@code Output} at that cell or {@code null} when missing/out of bounds
 	 */
 	public Output get(int depth, int principalVariation) {
 		if (principalVariation < 1 || principalVariation > pvOutputs.size()) {
@@ -184,9 +186,9 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for retrieving an array filled with non {@code null} {@code Output} {@code Objects}.
+	 * Collects all stored {@code Output} instances into a dense array.
 	 *
-	 * @return an array filled with non {@code null} {@code Output} {@code Objects}
+	 * @return array of all non-null {@code Output} entries
 	 */
 	public Output[] getOutputs() {
 		Output[] outputs = new Output[getSize()];
@@ -206,9 +208,9 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for converting the current {@code Analysis} into a JSON {@code String}.
+	 * Converts the stored outputs into a JSON array string for debugging or serialization.
 	 *
-	 * @return the current {@code Analysis} as a JSON {@code String}
+	 * @return JSON representation of this analysis grid
 	 */
 	@Override
 	public String toString() {
@@ -235,9 +237,9 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for calculating the total amount of non {@code null} {@code Output} {@code Objects}.
+	 * Counts how many {@code Output} entries are currently stored.
 	 *
-	 * @return the total amount of non {@code null} {@code Output} {@code Objects}
+	 * @return total non-null {@code Output} count
 	 */
 	public int getSize() {
 		int count = 0;
@@ -256,19 +258,19 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for retrieving the best move from the first principal variation.
+	 * Returns the best move (first ply) of PV1.
 	 *
-	 * @return the best {@code Move}, or {@link Move#NO_MOVE} if unavailable
+	 * @return best {@code Move}, or {@link Move#NO_MOVE} if missing
 	 */
 	public short getBestMove() {
 		return getBestMove(1);
 	}
 
 	/**
-	 * Used for retrieving the best move from a specified principal variation index.
+	 * Returns the best move (first ply) of the specified principal variation.
 	 *
-	 * @param pivot the index of the principal variation to extract the best move from (1-based)
-	 * @return the best {@code Move}, or {@link Move#NO_MOVE} if unavailable
+	 * @param pivot principal variation index (1-based)
+	 * @return best {@code Move} for that PV, or {@link Move#NO_MOVE} if none
 	 */
 	public short getBestMove(int pivot) {
 		if (pivot < 1 || pivot > pvOutputs.size()) {
@@ -293,27 +295,27 @@ public class Analysis {
 	}
 
 	/**
-	 * Used for retrieving the number of principal variations (PVs) currently stored.
+	 * Returns the count of principal variations currently held.
 	 *
-	 * @return the count of PV lists held by this analysis
+	 * @return number of PV lists
 	 */
 	public int getPivots() {
 		return pvOutputs.size();
 	}
 
 	/**
-	 * Used for checking whether this analysis currently holds no outputs.
+	 * Checks whether this analysis currently contains no outputs.
 	 *
-	 * @return {@code true} if the analysis contains no entries, otherwise {@code false}
+	 * @return {@code true} when empty, {@code false} otherwise
 	 */
 	public boolean isEmpty() {
 		return pvOutputs.isEmpty();
 	}
 
 	/**
-	 * Used for creating a deep copy of this {@code Analysis} instance.
+	 * Creates a deep copy of this {@code Analysis}, duplicating every stored {@code Output}.
 	 *
-	 * @return a new {@code Analysis} containing copies of all {@code Output} entries
+	 * @return cloned {@code Analysis}
 	 */
 	public Analysis copyOf() {
 		Analysis analysis = new Analysis();

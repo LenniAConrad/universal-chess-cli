@@ -5978,6 +5978,7 @@ public class Setup {
 	 *
 	 * @param position the position to mutate by playing random moves.
 	 * @param plies    the maximum number of plies to play.
+	 * @param lastParent optional slot to capture the last parent position
 	 */
 	private static void playRandomPlies(Position position, int plies, Position[] lastParent) {
 		for (int i = 0; i < plies; i++) {
@@ -5987,7 +5988,14 @@ public class Setup {
 		}
 	}
 
-	//todo add javadoc
+	/**
+	 * Plays a random legal move or signals that no move is available.
+	 * Updates {@code lastParent} when provided before mutating the position.
+	 *
+	 * @param position position to inspect and mutate
+	 * @param lastParent optional slot to capture the parent position
+	 * @return true if no move could be played or an error occurred
+	 */
 	private static boolean stopOnNoMove(Position position, Position[] lastParent) {
 		MoveList moves = position.getMoves();
 		if (moves == null || sizeIsZeroSafe(moves)) {

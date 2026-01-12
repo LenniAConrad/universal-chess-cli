@@ -144,11 +144,16 @@ public final class Writer {
     }
 
     /**
-     * Used for writing multiple JSON fragments to a file joined by commas.
+     * Writes the provided JSON fragments separated by commas into the current file position.
+     *
+     * <p>
+     * Assumes the random access file is positioned where the next value should begin.
+     * The method iterates over the fragments, inserting commas between consecutive values.
+     * </p>
      *
      * @param raf   open random access file handle
-     * @param parts list of JSON fragments to write
-     * @throws IOException if an I/O error occurs
+     * @param parts list of JSON fragments to write (must not be {@code null})
+     * @throws IOException if an I/O error occurs while writing bytes
      */
     private static void writeJoined(RandomAccessFile raf, List<String> parts) throws IOException {
         for (int i = 0; i < parts.size(); i++) {
@@ -161,12 +166,22 @@ public final class Writer {
     }
 
     /**
-     * Used for finding the last non-whitespace byte position in a file.
+     * Scans backwards from the file end to locate the last non-whitespace byte.
+     *
+     * <p>
+     * Whitespace is skipped (spaces, tabs, CR/LF) so we can determine whether the
+     * file terminated with a closing bracket or remains empty.
+     * </p>
+     *
+     * <p>
+     * {@link #appendJsonObjects(Path, List)} relies on this to decide if a comma
+     * is required before new entries and whether the array already has content.
+     * </p>
      *
      * @param raf    open random access file handle
      * @param length length of the file in bytes
      * @return position of the last non-whitespace byte, or -1 if none exists
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs while seeking or reading
      */
     private static long lastNonWhitespacePos(RandomAccessFile raf, long length) throws IOException {
         if (length <= 0)
@@ -192,10 +207,10 @@ public final class Writer {
     }
 
     /**
-     * Used for checking whether a byte represents a whitespace character.
+     * Determines whether a raw byte corresponds to ASCII whitespace characters used in JSON.
      *
      * @param b byte value to check
-     * @return true if whitespace, false otherwise
+     * @return {@code true} when the byte is space, tab, newline, or carriage return
      */
     private static boolean isWhitespace(byte b) {
         return b == ' ' || b == '\t' || b == '\n' || b == '\r';

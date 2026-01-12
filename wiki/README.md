@@ -10,6 +10,7 @@ If you did **not** run `./install.sh`, replace `ucicli <command> ...` with `java
 - [Configuration](configuration.md)
 - [Command reference](command-reference.md)
 - [Example commands](example-commands.md)
+- [Roadmap / ideas](roadmap.md)
 
 ## Deep dives
 

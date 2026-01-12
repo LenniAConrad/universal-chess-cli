@@ -55,10 +55,16 @@ public class SAN {
 	}
 
 	/**
-	 * Used for converting this move into algebraic notation.
+	 * Converts a move into Standard Algebraic Notation (SAN) within the supplied context.
+	 *
+	 * <p>
+	 * Handles castling, pawn promotions, captures with file disambiguation, and
+	 * check/checkmate suffixes determined by {@link #algebraicEnding(Position, short)}.
+	 * </p>
 	 *
 	 * @param context the current position before the move
-	 * @return the move in standard algebraic notation
+	 * @param move move to describe
+	 * @return SAN string describing the move
 	 */
 	public static String toAlgebraic(Position context, short move) {
 		String ending = algebraicEnding(context, move);
@@ -98,10 +104,16 @@ public class SAN {
 	}
 
 	/**
-	 * Used for determining check or checkmate suffix.
+	 * Generates the check/mate suffix for a SAN string.
+	 *
+	 * <p>
+	 * A move results in {@code "+"} when the resulting position leaves the opponent
+	 * in check, and {@code "#"} when no legal moves remain (checkmate).
+	 * </p>
 	 *
 	 * @param context the position before the move
-	 * @return "+" for check, "#" for checkmate, or "" otherwise
+	 * @param move move being played
+	 * @return {@code "+"} for check, {@code "#"} for mate, or {@code ""} otherwise
 	 */
 	private static String algebraicEnding(Position context, short move) {
 		Position next = context.copyOf().play(move);
@@ -115,11 +127,15 @@ public class SAN {
 	}
 
 	/**
-	 * Used for mapping piece byte to algebraic symbol.
+	 * Maps a piece code to the algebraic symbol used in SAN.
+	 *
+	 * <p>
+	 * Returns uppercase letters for minor/major pieces and an empty string for
+	 * pawns, whose origin file is printed explicitly when capturing.
+	 * </p>
 	 *
 	 * @param piece the piece code
-	 * @param index the index of the piece on the board (only used for pawns)
-	 * @return single-character notation or "" for pawn
+	 * @return single-character notation or {@code ""} for pawns
 	 */
 	private static String getPieceSymbol(byte piece) {
 		switch (piece) {
@@ -141,11 +157,17 @@ public class SAN {
 	}
 
 	/**
-	 * Used for generating file and rank disambiguation when needed.
+	 * Builds the disambiguation string when multiple pieces of the same type can reach the destination.
+	 *
+	 * <p>
+	 * Checks every legal move in the position and returns either the moving piece's file,
+	 * rank, or both (ordered) just enough to make the SAN string unambiguous.
+	 * </p>
 	 *
 	 * @param context the current position
+	 * @param move    the move that requires disambiguation
 	 * @param piece   the moving piece code
-	 * @return file and/or rank string or "" if unambiguous
+	 * @return file and/or rank string or {@code ""} when uniquely identified
 	 */
 	private static String buildDisambiguation(Position context, short move, byte piece) {
 		MoveList moves = context.getMoves();
@@ -175,9 +197,10 @@ public class SAN {
 	}
 
 	/**
-	 * Used for building promotion suffix.
+	 * Builds the promotion suffix added to a SAN move.
 	 *
-	 * @return promotion string or "" if none
+	 * @param promotion promotion piece code from the move
+	 * @return string like {@code =Q} when promotion occurs, otherwise {@code ""}
 	 */
 	private static String buildPromotionSuffix(byte promotion) {
 		switch (promotion) {
@@ -195,12 +218,17 @@ public class SAN {
 	}
 
 	/**
-	 * Used for parsing a SAN string and returning the corresponding legal move.
+	 * Parses a SAN string back into the corresponding legal move in the
+	 * supplied position.
+	 *
+	 * <p>
+	 * Accepts strings with trailing annotations such as {@code !} or {@code ?}
+	 * and matches them against the generated SAN list to ensure legality.
+	 * </p>
 	 *
 	 * @param context   the current position
-	 * @param algebraic the SAN string of the move (may include annotations like
-	 *                  "!", "?")
-	 * @return the matching move
+	 * @param algebraic the SAN string of the move (may include annotations like {@code !} or {@code ?})
+	 * @return the matching {@link Move}
 	 * @throws IllegalArgumentException if no matching legal move is found
 	 */
 	public static short fromAlgebraic(Position context, String algebraic) throws IllegalArgumentException {
@@ -218,38 +246,20 @@ public class SAN {
 	}
 
 	/**
-	 * Cleans a raw PGN move‑text string by stripping out all non‑SAN content,
-	 * including:
-	 * <ul>
-	 * <li>Comments (anything between {@code {...}}, e.g., move clocks)</li>
-	 * <li>Variations (anything between {@code (...)} )</li>
-	 * <li>Numeric Annotation Glyphs (NAGs) like {@code $3}</li>
-	 * <li>Move numbers (e.g. {@code 1.} or {@code 1...})</li>
-	 * <li>Game result tokens ({@code 1-0}, {@code 0-1}, {@code 1/2-1/2},
-	 * {@code *})</li>
-	 * <li>Extra whitespace (collapsed to single spaces)</li>
-	 * </ul>
-	 *
-	 * After cleaning, only the individual Standard Algebraic Notation (SAN) move
-	 * tokens
-	 * remain, separated by a single space.
+	 * Cleans raw PGN move text by removing comments, variations, NAGs,
+	 * move numbers, and result tokens, leaving only SAN move tokens separated
+	 * by single spaces.
 	 *
 	 * <p>
-	 * <strong>Example:</strong>
-	 * 
+	 * Example:
+	 * </p>
 	 * <pre>
-	 * // before cleaning:
 	 * String before = "1. e4 e5 (2. Nc3) 2... Nc6 {[%clk 2:34:56]} 3. Bb5 a6 $5 4. Ba4 Nf6 1-0";
-	 * // after cleaning:
-	 * String after = cleanMoveString(before);
-	 * // result: "e4 e5 Nc6 Bb5 a6 Ba4 Nf6"
+	 * String after = cleanMoveString(before); // "e4 e5 Nc6 Bb5 a6 Ba4 Nf6"
 	 * </pre>
 	 *
-	 * @param movetext the raw PGN move string (including comments, variations,
-	 *                 clocks, etc.)
-	 * @return a cleaned string containing only the SAN moves, each separated by a
-	 *         single space;
-	 *         or an empty string if no SAN moves are found
+	 * @param movetext the raw PGN move string (including comments, variations, clocks, etc.)
+	 * @return a cleaned string containing only SAN moves separated by spaces; empty when none found
 	 */
 	public static String cleanMoveString(String movetext) {
 		if (movetext == null || movetext.isEmpty()) {
@@ -261,33 +271,22 @@ public class SAN {
 	}
 
 	/**
-	 * Used for cleaning a PGN move-text string while preserving move variations.
-	 * <p>
-	 * This method removes:
-	 * <ul>
-	 * <li>Block comments (e.g., {@code {[%clk 2:34:56]}})</li>
-	 * <li>Line comments (e.g., {@code ; this is a comment})</li>
-	 * <li>Numeric Annotation Glyphs (e.g., {@code $5})</li>
-	 * <li>Move numbers (e.g., {@code 1.} or {@code 1...})</li>
-	 * <li>Game result tokens (e.g., {@code 1-0}, {@code 0-1}, {@code 1/2-1/2},
-	 * {@code *})</li>
-	 * </ul>
-	 * Variation groups enclosed in parentheses are retained and spaced
-	 * appropriately.
+	 * Cleans PGN move text while preserving variation parentheses.
 	 *
 	 * <p>
-	 * <strong>Example:</strong>
-	 * 
+	 * Block/line comments, NAGs, move numbers, and result tokens are removed, but
+	 * variation groups remain (with spacing normalized) so downstream parsers can
+	 * still detect sideline content.
+	 * </p>
+	 *
 	 * <pre>
-	 * String before = "1. e4 e5 (2. Nc3) 2... Nc6 {[%clk 2:34:56]} 3. Bb5 a6 $5 4. Ba4 Nf6 1-0";
+	 * String before = "1. e4 e5 (2. Nc3) 2... Nc6 {[%clk 2:34:56]} 3. Bb5 a6";
 	 * String after = cleanMoveStringKeepVariationsRegex(before);
-	 * // result: "e4 e5 (Nc3) Nc6 Bb5 a6 Ba4 Nf6"
+	 * // result: "e4 e5 (Nc3) Nc6 Bb5 a6"
 	 * </pre>
 	 *
-	 * @param movetext the raw PGN move string (including comments, variations,
-	 *                 clocks, etc.)
-	 * @return a cleaned string with SAN moves and variations, or empty if input is
-	 *         null/empty
+	 * @param movetext the raw PGN move string (including comments, variations, clocks, etc.)
+	 * @return a cleaned string with SAN moves and variations preserved, or empty if input is null/empty
 	 */
 	public static String cleanMoveStringKeepVariationsRegex(String movetext) {
 		if (movetext == null || movetext.isEmpty()) {

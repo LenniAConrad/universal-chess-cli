@@ -690,6 +690,11 @@ public final class Filter {
 
         /**
          * Compares two {@code long} values using the given operator.
+         *
+         * @param v  left-hand value
+         * @param op comparison operator to apply
+         * @param t  right-hand threshold
+         * @return {@code true} if the comparison holds
          */
         private static boolean compareLong(long v, ComparisonOperator op, long t) {
             return switch (op) {
@@ -704,6 +709,11 @@ public final class Filter {
         /**
          * Compares two {@code int} values using the given operator.
          * Delegates to {@link #compareLong(long, ComparisonOperator, long)}.
+         *
+         * @param v  left-hand value
+         * @param op comparison operator to apply
+         * @param t  right-hand threshold
+         * @return {@code true} if the comparison holds
          */
         private static boolean compareInt(int v, ComparisonOperator op, int t) {
             return compareLong(v, op, t);
@@ -712,6 +722,11 @@ public final class Filter {
         /**
          * Compares two {@link Evaluation} instances using domain-specific ordering
          * (e.g., mate scores vs centipawn scores).
+         *
+         * @param e  left-hand evaluation
+         * @param op comparison operator to apply
+         * @param t  right-hand evaluation to compare against
+         * @return {@code true} if the comparison holds
          */
         private static boolean compareEval(Evaluation e, ComparisonOperator op, Evaluation t) {
             return switch (op) {
@@ -727,6 +742,11 @@ public final class Filter {
          * Used for comparing an {@link Evaluation} while respecting bound hints from
          * the engine. Lower bounds only satisfy {@code >}/{@code >=}, upper bounds only
          * satisfy {@code <}/{@code <=}, and exact scores are required for equality.
+         *
+         * @param o      output holding evaluation/bound metadata
+         * @param op     comparison operator to apply
+         * @param target evaluation target to compare against
+         * @return {@code true} when the comparison is allowed and passes
          */
         private static boolean evalMatchesWithBound(Output o, ComparisonOperator op, Evaluation target) {
             if (o == null) {
@@ -753,6 +773,11 @@ public final class Filter {
         /**
          * Compares two {@link Chances} (W/D/L) values by mapping the binary operator
          * to the tri-component comparison provided by {@link Chances}.
+         *
+         * @param c  left-hand chances
+         * @param op comparison operator to apply
+         * @param t  right-hand target chances
+         * @return {@code true} if the comparison holds
          */
         private static boolean compareChances(Chances c, ComparisonOperator op, Chances t) {
             // Preserve original tri-operator semantics:
@@ -1143,6 +1168,13 @@ public final class Filter {
                 return true;
             }
 
+            /**
+             * Parses a raw eval token into an {@link Evaluation} instance.
+             * Accepts mate markers and decimal pawn values.
+             *
+             * @param raw raw token value (e.g., "#3", "-0.5", "300")
+             * @return parsed evaluation instance
+             */
             private static Evaluation parseEval(String raw) {
                 String normalized = raw;
                 if (normalized.startsWith("#+")) {

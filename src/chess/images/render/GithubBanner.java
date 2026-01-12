@@ -45,7 +45,14 @@ import utility.Images;
  */
 public final class GithubBanner {
 
+	/**
+	 * Gradient color used for the top-left background corner.
+	 */
 	private static final Color GRADIENT_TOP_LEFT = new Color(0xF0F0F0);
+
+	/**
+	 * Gradient color used for the bottom-right background corner.
+	 */
 	private static final Color GRADIENT_BOTTOM_RIGHT = new Color(0xE0E0E0);
 
 	/**
@@ -89,10 +96,17 @@ public final class GithubBanner {
 	 * shadow for contrast on the dark background.
 	 * </p>
 	 *
+	 * <p>
+	 * Width and height must both be positive; the method will reject
+	 * invalid dimensions immediately.
+	 * </p>
+	 *
 	 * @param width output width in pixels (must be {@code > 0})
 	 * @param height output height in pixels (must be {@code > 0})
 	 * @param fen FEN describing the position to render
 	 * @return rendered banner image
+	 * @throws IllegalArgumentException if {@code width} or {@code height} is not positive,
+	 *                                  or if {@code fen} is invalid
 	 */
 	private static BufferedImage renderBanner(int width, int height, String fen) {
 		if (width <= 0 || height <= 0) {
@@ -147,6 +161,7 @@ public final class GithubBanner {
 	 * @param board rendered board image (square, divisible by 8)
 	 * @param pad padding in pixels used for coordinate gutters (must be {@code >= 0})
 	 * @return new image containing the board and coordinate labels
+	 * @throws IllegalArgumentException if {@code board} is not square or divisible by 8
 	 */
 	private static BufferedImage drawCoordinates(BufferedImage board, int pad) {
 		int boardW = board.getWidth();
@@ -242,6 +257,7 @@ public final class GithubBanner {
 	 * @param w target width
 	 * @param h target height
 	 * @return new scaled image
+	 * @throws NullPointerException if {@code src} is {@code null}
 	 */
 	private static BufferedImage scale(BufferedImage src, int w, int h) {
 		Objects.requireNonNull(src, "src");
@@ -267,7 +283,14 @@ public final class GithubBanner {
 		return Math.max(lo, Math.min(hi, v));
 	}
 
+	/**
+	 * Minimal argument parser for {@code --flag value} style options.
+	 */
 	private static final class Args {
+
+		/**
+		 * Raw argument array supplied by the CLI entry point.
+		 */
 		private final String[] arguments;
 
 		/**
@@ -280,21 +303,30 @@ public final class GithubBanner {
 		}
 
 		/**
-		 * Wraps a raw argument array.
+		 * Wraps the raw command-line arguments into an accessor API.
 		 *
-		 * @param args raw args
-		 * @return wrapper
+		 * <p>
+		 * Null arrays are treated as empty to simplify downstream checks.
+		 * </p>
+		 *
+		 * @param args raw argument list provided to {@link #main(String[])}
+		 * @return parser wrapper instance
 		 */
 		static Args parse(String[] args) {
 			return new Args(args);
 		}
 
 		/**
-		 * Reads the string value following {@code key}, or returns {@code fallback}.
+		 * Reads the string value following {@code key}, returning {@code fallback} when the flag is missing.
+		 *
+		 * <p>
+		 * Flags are parsed as simple {@code --flag value} pairs found in {@link #arguments}.
+		 * The method ignores missing keys and never throws.
+		 * </p>
 		 *
 		 * @param key flag name (e.g. {@code --out})
-		 * @param fallback value to return if not present
-		 * @return parsed value or fallback
+		 * @param fallback value to return if the flag is absent
+		 * @return parsed flag value or {@code fallback}
 		 */
 		String strOr(String key, String fallback) {
 			for (int i = 0; i < arguments.length - 1; i++) {
@@ -306,11 +338,16 @@ public final class GithubBanner {
 		}
 
 		/**
-		 * Reads the integer value following {@code key}, or returns {@code fallback}.
+		 * Reads the integer value following {@code key}, falling back to the default when absent or malformed.
+		 *
+		 * <p>
+		 * Invalid integers (e.g., {@code "--width foo"}) cause the method to return
+		 * {@code fallback} without throwing.
+		 * </p>
 		 *
 		 * @param key flag name (e.g. {@code --width})
 		 * @param fallback value to return if not present or invalid
-		 * @return parsed integer or fallback
+		 * @return parsed integer or {@code fallback}
 		 */
 		int intOr(String key, int fallback) {
 			String v = strOr(key, null);

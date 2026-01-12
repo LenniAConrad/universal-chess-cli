@@ -401,6 +401,11 @@ public final class Constants {
 	public static final String OPT_HEIGHT = "--height";
 
 	/**
+	 * {@code --zoom} option flag.
+	 */
+	public static final String OPT_ZOOM = "--zoom";
+
+	/**
 	 * {@code --dark} option flag.
 	 */
 	public static final String OPT_DARK = "--dark";

@@ -272,6 +272,12 @@ public class Chances implements Comparable<Chances> {
 		return loss / PERCENTILE_DIVIDER + "%";
 	}
 
+	/**
+	 * Formats win/draw/loss percentages into a single line.
+	 * Uses the same formatting as the individual helpers.
+	 *
+	 * @return formatted chance summary string
+	 */
 	@Override
 	public String toString() {
 		return "win " + win / PERCENTILE_DIVIDER + "% draw " + draw / PERCENTILE_DIVIDER + "% loss "
@@ -279,16 +285,21 @@ public class Chances implements Comparable<Chances> {
 	}
 
 	/**
-	 * Used for directly comparing two {@code Chances} to one and another. The win,
-	 * draw and loss {@code ComparisonOperators} will compare the win, draw and loss
-	 * chances of each object with the other.
-	 * 
-	 * @param win
-	 * @param draw
-	 * @param loss
-	 * @param chances
-	 * @return {@code false} if none of the {@code ComparisonOperators} apply, or if
-	 *         any of the input parameters is {@code null}, else {@code true}
+	 * Compares this instance against another {@code Chances} object using the three
+	 * supplied operators.
+	 *
+	 * <p>
+	 * Each {@link ComparisonOperator} is applied to the corresponding win/draw/loss
+	 * component, so the method returns {@code true} only when all three comparisons
+	 * pass simultaneously.
+	 * </p>
+	 *
+	 * @param win     operator applied to the win chance
+	 * @param draw    operator applied to the draw chance
+	 * @param loss    operator applied to the loss chance
+	 * @param chances the target instance to compare against (must not be {@code null})
+	 * @return {@code false} if any operator fails, if {@code chances} is {@code null},
+	 *         or if any argument is {@code null}; {@code true} otherwise
 	 */
 	public boolean compare(ComparisonOperator win, ComparisonOperator draw, ComparisonOperator loss, Chances chances) {
 		if (win == null || draw == null || loss == null) {
@@ -367,10 +378,9 @@ public class Chances implements Comparable<Chances> {
 	}
 
 	/**
-	 * Copy constructor for creating a new {@code Chances} instance with the same
-	 * values.
-	 * 
-	 * @param other The {@code Chances} instance to copy.
+	 * Copy constructor creating a deep clone of another {@code Chances} instance.
+	 *
+	 * @param other the source {@code Chances}; must not be {@code null}
 	 */
 	public Chances(Chances other) {
 		this.win = other.win;
@@ -379,12 +389,17 @@ public class Chances implements Comparable<Chances> {
 	}
 
 	/**
-	 * Used for comparing two {@code Chances} to one and another.
+	 * Compares the current {@code Chances} against another instance according to
+	 * win/draw precedence.
 	 *
-	 * @param chances the other Chances instance to compare
-	 * @return a negative, zero, or positive integer as this object is less than,
-	 *         equal to, or greater
-	 *         than the specified object
+	 * <p>
+	 * The implementation subtracts {@code win} and {@code draw} successes so that
+	 * higher win/draw totals sort ahead of weaker evaluations.
+	 * </p>
+	 *
+	 * @param chances the other {@code Chances} instance to compare with
+	 * @return negative if this is weaker, zero if equal, positive if stronger
+	 * @throws NullPointerException if {@code chances} is {@code null}
 	 */
 	@Override
 	public int compareTo(Chances chances) {
@@ -423,59 +438,46 @@ public class Chances implements Comparable<Chances> {
 	}
 
 	/**
-	 * Used for parsing a textual win-draw-loss (W/D/L) triple into a
-	 * {@code Chances}
-	 * instance.
+	 * Parses a textual win-draw-loss (W/D/L) triple into a normalized
+	 * {@code Chances} instance.
 	 *
 	 * <p>
-	 * Accepts the following notations (case-insensitive; extra words are ignored):
+	 * Supported syntaxes (case-insensitive, extra words ignored):
 	 * </p>
 	 * <ul>
-	 * <li>{@code 1000/0/0} or {@code 790/200/10}</li>
+	 * <li>{@code 1000/0/0}, {@code 790/200/10}, etc.</li>
 	 * <li>{@code wdl 790 200 10}</li>
 	 * <li>{@code win 79% draw 20% loss 1%}</li>
-	 * <li>{@code 79 20 1} (interpreted as percentages when the three sum to
-	 * 100)</li>
+	 * <li>{@code 79 20 1} (interpreted as percentages when the sum is 100)</li>
 	 * </ul>
 	 *
 	 * <p>
-	 * Parsing and normalization steps:
-	 * </p>
+	 * Parsing steps:
 	 * <ol>
-	 * <li>Extract the first three integers found in the input string.</li>
-	 * <li>If a percent sign is present anywhere, or the three values sum to 100,
-	 * treat them as percentages and convert to a 0..1000 (basis points) scale.</li>
-	 * <li>If the triple does not sum to 1000, scale proportionally and round so the
-	 * sum
-	 * becomes exactly 1000.</li>
-	 * <li>Validate that each component lies within {@code 0..1000} and construct
-	 * the result.</li>
+	 * <li>Extract the first three integers.</li>
+	 * <li>If percentages or the sum equals 100, scale to basis points (0..1000).</li>
+	 * <li>If the sum differs from 1000, normalize proportionally so it becomes 1000.</li>
+	 * <li>Validate each value is within 0..1000.</li>
 	 * </ol>
+	 * </p>
 	 *
 	 * <p>
 	 * Examples:
 	 * </p>
-	 * 
+	 *
 	 * <pre>{@code
-	 * Chances.parse("wdl 790 200 10")                   // -> 790/200/10
-	 * Chances.parse("79 20 1")                          // -> 790/200/10
-	 * Chances.parse("win 55% draw 25% loss 20%")        // -> 550/250/200
-	 * Chances.parse("1000/0/0")                         // -> 1000/0/0
+	 * Chances.parse("wdl 790 200 10")        // -> 790/200/10
+	 * Chances.parse("79 20 1")               // -> 790/200/10
+	 * Chances.parse("win 55% draw 25% loss 20%") // -> 550/250/200
+	 * Chances.parse("1000/0/0")              // -> 1000/0/0
 	 * }</pre>
 	 *
-	 * @param s Used for supplying a string containing a W/D/L triple in one of the
-	 *          accepted
-	 *          formats.
-	 * @return Used for returning a {@code Chances} normalized to a 0..1000 scale
-	 *         whose
-	 *         components sum to 1000.
-	 * @throws IllegalArgumentException Used for indicating malformed input: when
-	 *                                  {@code s} is
-	 *                                  {@code null}; when fewer than three integers
-	 *                                  are found; when the pre-normalized
-	 *                                  sum is non-positive; or when any component
-	 *                                  falls outside {@code 0..1000} after
-	 *                                  normalization.
+	 * @param s textual W/D/L triple in one of the accepted formats
+	 * @return normalized {@code Chances} whose three components sum to 1000
+	 * @throws IllegalArgumentException if {@code s} is {@code null}, fewer than
+	 *                                  three integers are found, the pre-normalized
+	 *                                  sum is non-positive, or any component falls
+	 *                                  outside {@code 0..1000} after normalization
 	 */
 	public static Chances parse(String s) {
 		if (s == null)

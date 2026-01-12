@@ -215,11 +215,35 @@ public class Json {
      * Holds streaming scanner state to avoid many local vars in the public method.
      */
     private static final class StreamScan {
+        /**
+         * Tracks whether the opening array bracket has been seen.
+         * Used to route input between the preamble and object scanning.
+         */
         boolean inArray;
+        /**
+         * Tracks whether the scanner is currently inside a JSON string literal.
+         * Used to ignore braces and commas until the string closes.
+         */
         boolean inStr;
+        /**
+         * Tracks whether the previous character was an escape in a string.
+         * Ensures escaped quotes do not terminate the string.
+         */
         boolean esc;
+        /**
+         * Current nested object depth within the array payload.
+         * A depth of zero means the scanner is between objects.
+         */
         int depth; // 0 = not inside an object; >0 = brace depth
+        /**
+         * Initial buffer size for building a single JSON object string.
+         * Reused when the working buffer needs to be reset.
+         */
         final int initialCapacity;
+        /**
+         * Accumulates the current object's raw JSON characters.
+         * Emitted to the consumer once the object closes.
+         */
         StringBuilder obj;
 
         /**
@@ -235,8 +259,13 @@ public class Json {
 
     /**
      * Handles the preamble before the opening '['.
-     * 
-     * @return true if the character was fully handled (caller should continue).
+     *
+     * Advances scanner state once the array begins and rejects invalid input.
+     *
+     * @param st scanner state to update
+     * @param c current character from the stream
+     * @return true if the character was fully handled by preamble logic
+     * @throws IOException if the input does not start with a JSON array
      */
     private static boolean handlePreamble(StreamScan st, char c) throws IOException {
         if (c == '\uFEFF' || Character.isWhitespace(c)) {
@@ -251,8 +280,12 @@ public class Json {
 
     /**
      * Handles characters at top array level (outside any object).
-     * 
-     * @return true if we reached the end of the array (']').
+     *
+     * Detects object starts and the end of the surrounding array.
+     *
+     * @param st scanner state to update
+     * @param c current character from the stream
+     * @return true if we reached the end of the array (']')
      */
     private static boolean handleTopLevel(StreamScan st, char c) {
         switch (c) {
@@ -269,7 +302,12 @@ public class Json {
         }
     }
 
-    /** Initializes state for a new object and appends the opening '{'. */
+    /**
+     * Initializes state for a new object and appends the opening '{'.
+     * Resets depth and string parsing flags before scanning contents.
+     *
+     * @param st scanner state to update
+     */
     private static void startObject(StreamScan st) {
         st.depth = 1;
         st.inStr = false;
@@ -281,6 +319,10 @@ public class Json {
     /**
      * Appends the char and dispatches to string/non-string handling while inside an
      * object.
+     *
+     * @param st scanner state to update
+     * @param c current character from the stream
+     * @param consumer sink for completed object payloads
      */
     private static void handleInsideObject(StreamScan st, char c, Consumer<String> consumer) {
         st.obj.append(c);
@@ -291,7 +333,13 @@ public class Json {
         }
     }
 
-    /** Updates state while inside a JSON string literal. */
+    /**
+     * Updates state while inside a JSON string literal.
+     * Tracks escape sequences and closes the string when a quote is reached.
+     *
+     * @param st scanner state to update
+     * @param c current character from the stream
+     */
     private static void handleStringChar(StreamScan st, char c) {
         if (st.esc) {
             st.esc = false; // current char is escaped; do not interpret it
@@ -305,6 +353,10 @@ public class Json {
     /**
      * Updates state while not in a string: quotes/braces end/start + object
      * completion.
+     *
+     * @param st scanner state to update
+     * @param c current character from the stream
+     * @param consumer sink for completed object payloads
      */
     private static void handleNonStringChar(StreamScan st, char c, Consumer<String> consumer) {
         if (c == '"') {
@@ -326,6 +378,12 @@ public class Json {
         }
     }
 
+    /**
+     * Resets the object buffer after an object has been emitted.
+     * Reallocates when the buffer grew beyond the configured ceiling.
+     *
+     * @param st scanner state to update
+     */
     private static void resetObjectBufferAfterEmit(StreamScan st) {
         if (st.obj.capacity() > STREAM_OBJ_MAX_CAPACITY) {
             st.obj = new StringBuilder(st.initialCapacity);

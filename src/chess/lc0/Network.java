@@ -123,6 +123,13 @@ public final class Network implements AutoCloseable {
         return new Network(Weights.load(path), null);
     }
 
+    /**
+     * Loads a network using the CUDA backend.
+     * Returns an initialized instance when CUDA setup succeeds.
+     *
+     * @param path path to the weights file
+     * @return CUDA-backed network instance
+     */
     private static Network loadCuda(Path path) {
         try (CudaBackendHolder holder = new CudaBackendHolder(Backend.create(path))) {
             Network network = new Network(null, holder.backend);
@@ -131,7 +138,15 @@ public final class Network implements AutoCloseable {
         }
     }
 
+    /**
+     * Helper that owns a CUDA backend until detached or closed.
+     * Ensures the backend is closed on error paths.
+     */
     private static final class CudaBackendHolder implements AutoCloseable {
+        /**
+         * Owned backend instance, or {@code null} once detached.
+         * Closed on {@link #close()} when still attached.
+         */
         private Backend backend;
 
         /**
@@ -143,10 +158,18 @@ public final class Network implements AutoCloseable {
             this.backend = backend;
         }
 
+        /**
+         * Releases ownership so the backend is not closed by this holder.
+         * Used after transferring the backend to a {@link Network}.
+         */
         private void detach() {
             backend = null;
         }
 
+        /**
+         * Closes the backend if it is still attached.
+         * Safe to call multiple times.
+         */
         @Override
         public void close() {
             if (backend != null) {
@@ -239,6 +262,16 @@ public final class Network implements AutoCloseable {
     /**
      * Model metadata extracted from the weights file.
      *
+     * <p>These values summarize the network's structure and parameter count.</p>
+     *
+     * @param inputChannels  number of input feature planes
+     * @param trunkChannels  number of channels in the residual trunk
+     * @param residualBlocks count of residual blocks
+     * @param policyChannels number of channels in the policy head
+     * @param valueChannels  number of channels in the value head
+     * @param policySize     number of policy outputs
+     * @param parameterCount total number of parameters
+     *
      * @since 2025
      * @author Lennart A. Conrad
      */
@@ -258,6 +291,13 @@ public final class Network implements AutoCloseable {
      * @author Lennart A. Conrad
      */
     public record DebugValue(float[] rawWdl, boolean blackToMove) {
+        /**
+         * Compares the WDL arrays by content and the side-to-move flag by value.
+         * Treats array contents as the equality contract.
+         *
+         * @param o object to compare against
+         * @return true if the values are equal
+         */
         @Override
         public boolean equals(Object o) {
             if (this == o)
@@ -267,6 +307,12 @@ public final class Network implements AutoCloseable {
             return blackToMove == other.blackToMove && Arrays.equals(rawWdl, other.rawWdl);
         }
 
+        /**
+         * Hashes the WDL array contents and the side-to-move flag.
+         * Matches the equality contract for this record.
+         *
+         * @return hash code for this instance
+         */
         @Override
         public int hashCode() {
             int result = Arrays.hashCode(rawWdl);
@@ -274,6 +320,12 @@ public final class Network implements AutoCloseable {
             return result;
         }
 
+        /**
+         * Returns a readable representation of the debug value.
+         * Includes the WDL array and side-to-move flag.
+         *
+         * @return string form of this debug value
+         */
         @Override
         public String toString() {
             return "DebugValue[rawWdl=" + Arrays.toString(rawWdl) + ", blackToMove=" + blackToMove + "]";
@@ -294,7 +346,11 @@ public final class Network implements AutoCloseable {
     public record Prediction(float[] policy, float[] wdl, float value) {
 
         /**
-         * Equality compares {@link #value()} exactly (bitwise) and compares the policy and WDL arrays by content.
+         * Equality compares {@link #value()} exactly (bitwise) and compares arrays by content.
+         * Treats policy and WDL arrays as part of the value identity.
+         *
+         * @param o object to compare against
+         * @return true if the values are equal
          */
         @Override
         public boolean equals(Object o) {
@@ -309,6 +365,9 @@ public final class Network implements AutoCloseable {
 
         /**
          * Hash is based on the policy/WDL array contents and the scalar {@link #value()}.
+         * Matches the equality contract for this record.
+         *
+         * @return hash code for this instance
          */
         @Override
         public int hashCode() {
@@ -320,6 +379,8 @@ public final class Network implements AutoCloseable {
 
         /**
          * Returns a readable representation including policy, WDL and scalar value.
+         *
+         * @return formatted string representation
          */
         @Override
         public String toString() {
@@ -366,6 +427,8 @@ public final class Network implements AutoCloseable {
 
         /**
          * Reads the configured thread count or falls back to available processors.
+         *
+         * @return resolved thread count (at least 1)
          */
         private static int parseThreads() {
             String v = System.getProperty("ucicli.lc0.threads", System.getProperty("lc0j.threads"));
@@ -382,6 +445,9 @@ public final class Network implements AutoCloseable {
         /**
          * Returns {@code true} when parallelism should be used for the provided channel
          * count.
+         *
+         * @param channels output channel count
+         * @return true if parallel execution should be used
          */
         static boolean enabledForChannels(int channels) {
             return POOL != null && channels >= MIN_CHANNELS;
@@ -391,11 +457,21 @@ public final class Network implements AutoCloseable {
          * Converts a range into work that can be executed by fork/join tasks.
          */
         interface RangeBody {
+            /**
+             * Executes work for a half-open channel range.
+             *
+             * @param startInclusive inclusive start index
+             * @param endExclusive exclusive end index
+             */
             void run(int startInclusive, int endExclusive);
         }
 
         /**
          * Executes {@link RangeBody} either sequentially or on the fork/join pool.
+         *
+         * @param startInclusive inclusive start index
+         * @param endExclusive exclusive end index
+         * @param body work body to execute
          */
         static void forRange(int startInclusive, int endExclusive, RangeBody body) {
             if (POOL == null) {
@@ -432,6 +508,10 @@ public final class Network implements AutoCloseable {
 
             /**
              * Records the range and work body for the task.
+             *
+             * @param start inclusive start index for this range
+             * @param end exclusive end index for this range
+             * @param body work body to execute
              */
             RangeTask(int start, int end, RangeBody body) {
                 this.start = start;
@@ -487,8 +567,20 @@ public final class Network implements AutoCloseable {
          */
         final float[] bias;
 
+        /**
+         * Precomputed neighbor square indices for kernel convolution.
+         * {@code null} when the kernel size is 1.
+         */
         private final int[] neighborSquare;
+        /**
+         * Precomputed kernel index offsets for each neighbor square.
+         * {@code null} when the kernel size is 1.
+         */
         private final int[] neighborKernelIndex;
+        /**
+         * Precomputed start offsets into the neighbor arrays.
+         * {@code null} when the kernel size is 1.
+         */
         private final int[] neighborStart;
 
         /**
@@ -878,18 +970,70 @@ public final class Network implements AutoCloseable {
 	         * Internal build state used while parsing a weights file.
 	         */
 	        private static final class Builder {
+	            /**
+	             * Number of input channels reported by the weights file.
+	             * Copied into the built {@link Weights} instance.
+	             */
 	            int inputChannels;
+	            /**
+	             * Number of channels in the residual trunk.
+	             * Copied into the built {@link Weights} instance.
+	             */
 	            int trunkChannels;
+	            /**
+	             * Number of channels feeding the policy head.
+	             * Copied into the built {@link Weights} instance.
+	             */
 	            int policyChannels;
+	            /**
+	             * Number of channels feeding the value head.
+	             * Copied into the built {@link Weights} instance.
+	             */
 	            int valueChannels;
+	            /**
+	             * Mapping from raw policy planes to LC0 move indices.
+	             * Populated from the weights file.
+	             */
             int[] policyMap;
+            /**
+             * Total parameter count computed during parsing.
+             * Propagated to the built {@link Weights}.
+             */
             long parameterCount;
+            /**
+             * Parsed input convolution layer descriptor.
+             * Assigned once during file decoding.
+             */
             ConvLayer inputLayer;
+            /**
+             * Parsed residual blocks in the trunk.
+             * Preserves original order from the weights file.
+             */
             List<ResidualBlock> blocks;
+            /**
+             * Convolutional stem for the policy head.
+             * Assigned once during file decoding.
+             */
             ConvLayer policyStem;
+            /**
+             * Final convolution producing policy logits.
+             * Assigned once during file decoding.
+             */
             ConvLayer policyOutput;
+            /**
+             * Convolutional stem for the value head.
+             * Assigned once during file decoding.
+             */
             ConvLayer valueConv;
+            /**
+             * First dense layer in the value head.
+             * Assigned once during file decoding.
+             */
             DenseLayer valueFc1;
+            /**
+             * Second dense layer in the value head.
+             * Assigned once during file decoding.
+             */
             DenseLayer valueFc2;
         }
 
@@ -1091,6 +1235,10 @@ public final class Network implements AutoCloseable {
          */
         private static final ThreadLocal<Workspace> WORKSPACE = ThreadLocal.withInitial(Workspace::new);
 
+        /**
+         * Clears the thread-local workspace for the current thread.
+         * Allows buffers to be reclaimed or reinitialized later.
+         */
         static void clearThreadLocal() {
             WORKSPACE.remove();
         }

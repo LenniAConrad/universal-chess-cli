@@ -4,6 +4,7 @@ All commands are subcommands of `application.Main`.
 
 - Installed launcher: `ucicli <command> ...`
 - From classes: `java -cp out application.Main <command> ...`
+- Proposed/future additions: `roadmap.md`
 
 ## `record-to-plain`
 
@@ -124,6 +125,7 @@ Options:
 - `--no-border`: hide the board frame
 - `--size <px>`: window size (square)
 - `--width <px>`, `--height <px>`: window size override
+- `--zoom <factor>`: zoom multiplier (1.0 = fit-to-window)
 - `--dark|--dark-mode`: dark window styling
 - `--verbose|-v`: print stack traces on failure
 

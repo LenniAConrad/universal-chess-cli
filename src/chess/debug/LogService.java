@@ -182,7 +182,7 @@ public final class LogService {
 		/**
 		 * Used for formatting {@link LogRecord}s into a single-line string.
 		 *
-		 * @param record the log record
+		 * @param logRecord the log record
 		 * @return the formatted string
 		 */
 		@Override
@@ -195,12 +195,18 @@ public final class LogService {
 
 	/**
 	 * Returns a canonical absolute path string for logging.
+	 *
 	 * <p>
-	 * Tries {@link Path#toRealPath(LinkOption...)} (without following symlinks).
-	 * If that fails, falls back to {@link Path#toAbsolutePath()} and
-	 * {@link Path#normalize()}.
+	 * The method first attempts {@link Path#toRealPath(LinkOption...)} without
+	 * following symlinks. On failure (missing file, security constraints) it falls
+	 * back to {@link Path#toAbsolutePath()} followed by {@link Path#normalize()} so
+	 * logging remains informative.
+	 * </p>
+	 *
 	 * <p>
-	 * Returns the literal string {@code "null"} if input is {@code null}.
+	 * Returns the literal string {@code "null"} when the argument is {@code null}
+	 * so log entries stay consistent.
+	 * </p>
 	 *
 	 * @param p path to render, may be {@code null}
 	 * @return canonical/absolute path string, or {@code "null"}
@@ -216,7 +222,12 @@ public final class LogService {
 	}
 
 	/**
-	 * Overload for string paths, delegating to {@link #pathAbs(Path)}.
+	 * Overload for string inputs that delegates to {@link #pathAbs(Path)}.
+	 *
+	 * <p>
+	 * A {@code null} input still returns {@code "null"} so callers can log
+	 * placeholders consistently across the codebase.
+	 * </p>
 	 *
 	 * @param path path string, may be {@code null}
 	 * @return canonical/absolute path string, or {@code "null"}

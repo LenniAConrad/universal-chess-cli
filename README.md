@@ -13,6 +13,10 @@ Universal Chess CLI is a zero-dependency Java 17 toolkit for driving UCI chess e
 - Examples: `wiki/example-commands.md`
 - Config: `wiki/configuration.md`
 
+## Roadmap / ideas
+
+A short list of proposed future subcommands and contributor tooling lives in `wiki/roadmap.md`.
+
 ---
 
 ## Quickstart
@@ -76,12 +80,14 @@ Outputs:
 - `print`: pretty-print a FEN as ASCII
 - `display`: open a small GUI board view (overlays + optional ablation)
 - `render`: save a board image to disk (PNG/JPG/BMP)
+- `cuda-info`: show LC0 CUDA backend availability and device info
 - `analyze`, `bestmove`: analyze a FEN and extract the best move
 - `moves`, `tags`: list legal moves or tags for a FEN
 - `stats`, `stats-tags`: summarize dumps or tag distributions
 - `perft`: validate move generation at a given depth
 - `pgn-to-fens`: extract FEN seeds from PGN files
 - `eval`: evaluate a position with LC0 or classical heuristics
+- `clean`: remove/clean derived artifacts
 - `config`: show/validate resolved configuration
 
 ---
@@ -111,8 +117,10 @@ ucicli mine --random-count 50 --output dump/
 
 ## Optional evaluators
 
-- Java LC0 evaluator (used by `display`/ablation): `wiki/lc0.md`
-- Dual-head MLP evaluator (pure Java): export to `models/mlp_dual_wide.bin` via `src/chess/nn2/export_weights.py`, then load with `chess.mlp.MlpWeightsLoader`
+ucicli supports two different “LC0” paths:
+
+- LC0 as a UCI engine for mining (usually needs `.pb.gz` weights): see `wiki/lc0.md`
+- Built-in Java LC0 evaluator for `eval`/`display`/ablation (uses `models/lc0_744706.bin`): see `wiki/lc0.md` and `models/README.md`
 
 ---
 

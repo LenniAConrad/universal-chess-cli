@@ -387,6 +387,14 @@ public class Record {
         return sb.toString();
     }
 
+    /**
+     * Appends a JSON numeric field, e.g. {@code "count":42}.
+     * Does not perform escaping since the value is numeric.
+     *
+     * @param sb target builder
+     * @param name JSON field name
+     * @param value numeric value to append
+     */
     private static void appendNumberField(StringBuilder sb, String name, long value) {
         sb.append('"').append(name).append('"').append(':').append(value);
     }
@@ -441,6 +449,7 @@ public class Record {
      *
      * @param json JSON object string
      * @return parsed {@code Record}, or {@code null} if input is invalid
+     * @throws IllegalArgumentException if required numeric fields are missing or unparsable
      */
     public static Record fromJson(String json) {
         if (json == null) {

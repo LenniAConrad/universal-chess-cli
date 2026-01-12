@@ -21,7 +21,7 @@ import chess.core.Move;
  * @see Analysis
  * @see Engine
  * @since 2023
- *        author Lennart A. Conrad
+ * @author Lennart A. Conrad
  */
 public class Output {
 
@@ -160,6 +160,10 @@ public class Output {
 		UPPER
 	}
 
+	/**
+	 * Indicates whether the evaluation is an exact score or a bound.
+	 * Defaults to {@link Bound#NONE} when unbounded.
+	 */
 	private Bound bound = Bound.NONE;
 
 	/**

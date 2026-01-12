@@ -188,10 +188,16 @@ public final class RecordPgnExporter {
     /**
      * Builds the PGN for a single start signature when valid.
      *
-     * @param sig start signature.
+     * <p>
+     * The method walks the directed acyclic graph anchored at {@code sig}, collects
+     * the corresponding moves, inserts comments for alternating continuations, and
+     * flattens the result into a single PGN game string.
+     * </p>
+     *
+     * @param sig start signature (derived from a position FEN).
      * @param fen starting FEN string.
-     * @param ctx shared PGN context.
-     * @return serialized PGN or {@code null} when the line is not renderable.
+     * @param ctx shared PGN context holding adjacency and evaluation metadata.
+     * @return serialized PGN or {@code null} when the line cannot be rendered.
      */
     private static String buildPgnForStart(String sig, String fen, PgnContext ctx) {
         if (fen == null || fen.isEmpty()) {
@@ -205,13 +211,22 @@ public final class RecordPgnExporter {
     }
 
     /**
-     * Indexes streamed records into lookup maps used for graph construction.
+     * Streams all records and builds the adjacency/counter maps needed to construct
+     * PGN games later.
+     *
+     * <p>
+     * The process has two phases: first it streams the JSON and extracts positions,
+     * best-move metadata, and child signatures. After that it attempts to link both
+     * direct edges (parent⇒child) and bridged links when the intermediate parent is
+     * not stored explicitly.
+     * </p>
      *
      * @param recordFile source JSON path.
      * @param ok         counter for valid records.
      * @param bad        counter for skipped records.
      * @param badEdges   counter for missing SAN links.
-     * @return {@link IndexData} holding map views.
+     * @param totalRecords estimated record count for progress reporting
+     * @return {@link IndexData} holding map views used by {@link #buildPgnForStart}
      * @throws IOException if the stream fails.
      */
     private static IndexData indexRecords(
@@ -253,7 +268,13 @@ public final class RecordPgnExporter {
     }
 
     /**
-     * Parses and indexes one JSON record, updating counters and progress.
+     * Parses and indexes one JSON record, updating counters and the progress bar.
+     *
+     * <p>
+     * The method tolerates invalid JSON by skipping records that do not parse or
+     * lack a {@code position}. Valid entries are persisted into the various maps
+     * that later produce PGN edges.
+     * </p>
      *
      * @param objJson raw JSON object string.
      * @param ctx     indexing context with counters and map views.
@@ -397,6 +418,12 @@ public final class RecordPgnExporter {
 
     /**
      * Extracts record data and stores it in the provided index maps.
+     *
+     * <p>
+     * Adds the record's position signature, best move, description, and evaluation
+     * score if they are present. It also enqueues the parent→child relationship
+     * and caches the SAN string describing that edge for later PGN generation.
+     * </p>
      *
      * @param rec               record to index.
      * @param positionsBySig    map for signature to FEN.
@@ -1312,6 +1339,14 @@ public final class RecordPgnExporter {
             this.hash = computeHash(destSig, sans);
         }
 
+        /**
+         * Computes a combined hash for the destination signature and SAN path.
+         * Uses a stable 31x rolling hash over the SAN tokens.
+         *
+         * @param destSig destination signature
+         * @param sans SAN path tokens for the edge
+         * @return combined hash code
+         */
         private static int computeHash(String destSig, String[] sans) {
             int result = (destSig != null) ? destSig.hashCode() : 0;
             if (sans != null) {
@@ -1322,6 +1357,13 @@ public final class RecordPgnExporter {
             return result;
         }
 
+        /**
+         * Compares destination signature and SAN path content for equality.
+         * Treats SAN tokens as ordered path elements.
+         *
+         * @param obj object to compare against
+         * @return true if both keys represent the same edge
+         */
         @Override
         public boolean equals(Object obj) {
             if (this == obj) {
@@ -1333,6 +1375,12 @@ public final class RecordPgnExporter {
             return Objects.equals(destSig, other.destSig) && Arrays.equals(sans, other.sans);
         }
 
+        /**
+         * Returns the precomputed hash for this key.
+         * Matches {@link #equals(Object)} semantics.
+         *
+         * @return hash code for this key
+         */
         @Override
         public int hashCode() {
             return hash;

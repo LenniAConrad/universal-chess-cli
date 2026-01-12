@@ -243,7 +243,7 @@ try_build_cuda_backend() {
   return 0
 }
 
-echo "== Universal Chess CLI installer =="
+echo "Universal Chess CLI installer ~"
 echo "Repo path: $APP_HOME"
 echo
 
