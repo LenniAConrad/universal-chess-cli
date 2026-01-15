@@ -3,7 +3,7 @@
 ## Mining fails to start an engine
 
 - Verify your engine binary exists and is executable (check `path = ...` in your engine protocol TOML).
-- Run `ucicli help` and confirm you’re passing `--protocol-path` to the right file.
+- Run `crtk help` and confirm you’re passing `--protocol-path` to the right file.
 - If your engine is on `PATH`, try `which stockfish` / `which lc0`.
 
 ## Filters don’t seem to “stick”
@@ -21,4 +21,3 @@
 
 - The evaluator tries to load `models/lc0_744706.bin` and falls back to a classical heuristic when LC0 is unavailable.
 - If you want CUDA acceleration, build `native/cuda/` and run with `-Djava.library.path=...`.
-

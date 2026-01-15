@@ -41,7 +41,12 @@ public final class Constants {
 	public static final String CMD_STACK_TO_DATASET = "stack-to-dataset";
 
 	/**
-	 * {@code cuda-info} subcommand token.
+	 * {@code gpu-info} subcommand token.
+	 */
+	public static final String CMD_GPU_INFO = "gpu-info";
+
+	/**
+	 * Legacy alias for {@code gpu-info}.
 	 */
 	public static final String CMD_CUDA_INFO = "cuda-info";
 

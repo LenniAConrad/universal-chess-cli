@@ -4,7 +4,7 @@ This directory contains an optional native shared library (`lc0j_cuda`) used by 
 
 If present at runtime, the Java code can:
 - Detect whether CUDA is usable (`chess.lc0.cuda.Support.isAvailable()` / `deviceCount()`).
-- Run LC0J `.bin` policy+value inference on the GPU (`chess.lc0.cuda.Backend`), which is auto-selected by `chess.lc0.Network` when `-Ducicli.lc0.backend=auto` (default) and CUDA is available.
+- Run LC0J `.bin` policy+value inference on the GPU (`chess.lc0.cuda.Backend`), which is auto-selected by `chess.lc0.Network` when `-Dcrtk.lc0.backend=auto` (default; legacy: `ucicli.lc0.*`) and CUDA is available.
 
 This JNI library intentionally has **no third-party Java dependencies**; it uses JNI and the CUDA runtime (`cudart`).
 
@@ -60,19 +60,19 @@ java -cp out -Djava.library.path=native/cuda/build application.Main display --fe
 Example (force CUDA backend; opens a window; errors out if CUDA cannot initialize):
 
 ```bash
-java -cp out -Djava.library.path=native/cuda/build -Ducicli.lc0.backend=cuda application.Main display --fen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" --show-backend
+java -cp out -Djava.library.path=native/cuda/build -Dcrtk.lc0.backend=cuda application.Main display --fen "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" --show-backend
 ```
 
 Backend selection:
-- Default: `-Ducicli.lc0.backend=auto` (use CUDA if available, else CPU)
-- Force CPU: `-Ducicli.lc0.backend=cpu`
-- Force CUDA: `-Ducicli.lc0.backend=cuda`
+- Default: `-Dcrtk.lc0.backend=auto` (use CUDA if available, else CPU)
+- Force CPU: `-Dcrtk.lc0.backend=cpu`
+- Force CUDA: `-Dcrtk.lc0.backend=cuda`
 
 In code, call `chess.lc0.cuda.Support.isAvailable()` / `chess.lc0.cuda.Support.deviceCount()`.
 
 ## Notes
 - This backend loads LC0J weights with magic `LC0J` (same file format as the pure-Java CPU path).
-- `lc0j.backend` / `lc0j.threads` are still accepted as legacy aliases, but prefer `ucicli.lc0.backend` / `ucicli.lc0.threads`.
+- `ucicli.lc0.*` and `lc0j.*` are still accepted as legacy aliases, but prefer `crtk.lc0.backend` / `crtk.lc0.threads`.
 
 ## Troubleshooting
 - VSCode squiggles on `#include <jni.h>` / CUDA headers: run the CMake configure step once to generate `native/cuda/build/compile_commands.json` and reload VSCode (this repo sets `C_Cpp.default.compileCommands` accordingly).

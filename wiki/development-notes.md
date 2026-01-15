@@ -26,7 +26,7 @@ The root `README.md` should stay as a quickstart. Longer explanations live under
 
 ## Optional tooling
 
-If you plan to iterate on `ucicli` regularly, consider adding a small layer of local tooling:
+If you plan to iterate on ChessRTK regularly, consider adding a small layer of local tooling:
 - `just` (or a `Makefile`) for common tasks like build/release/smoke tests
 - `pre-commit` hooks for `shellcheck` (shell scripts) and `google-java-format` (Java)
 - `jlink` / `jpackage` for optional self-contained distributions

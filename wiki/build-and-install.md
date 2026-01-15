@@ -47,21 +47,21 @@ java -cp out application.Main <command> [options]
 ## Package a runnable JAR (optional)
 
 ```bash
-jar --create --file ucicli.jar --main-class application.Main -C out .
-java -jar ucicli.jar help
+jar --create --file crtk.jar --main-class application.Main -C out .
+java -jar crtk.jar help
 ```
 
 ## Linux installer (Debian/Ubuntu)
 
 `./install.sh` is a convenience installer that:
 - optionally installs OpenJDK 17 and Stockfish via `apt-get`
-- compiles sources and builds `ucicli.jar`
-- installs a launcher at `/usr/local/bin/ucicli` that runs from this repo
+- compiles sources and builds `crtk.jar`
+- installs a launcher at `/usr/local/bin/crtk` that runs from this repo
 - optionally builds the CUDA JNI backend under `native/cuda/` (if you have the CUDA toolkit)
 
 ```bash
 ./install.sh
-ucicli help
+crtk help
 ```
 
 Skip the CUDA backend build:

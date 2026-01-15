@@ -30,25 +30,24 @@ import chess.lc0.cuda.Backend;
  * <li>optional GPU backends via JNI (CUDA/ROCm/oneAPI)</li>
  * </ul>
  *
- * <h2>Backend selection</h2>
- * <ul>
- * <li>{@code -Ducicli.lc0.backend=auto} (default): use the first available GPU backend
- * (CUDA, then ROCm, then oneAPI) that initializes successfully, else CPU</li>
- * <li>{@code -Ducicli.lc0.backend=cpu}: force CPU</li>
- * <li>{@code -Ducicli.lc0.backend=cuda}: force CUDA (throws if init fails/unavailable)</li>
- * <li>{@code -Ducicli.lc0.backend=rocm|amd|hip}: force ROCm (AMD)</li>
- * <li>{@code -Ducicli.lc0.backend=oneapi|intel}: force oneAPI (Intel)</li>
- * </ul>
- *
- * <p>
- * Legacy compatibility: {@code lc0j.backend} and {@code lc0j.threads} are also
- * honored.
+	 * <h2>Backend selection</h2>
+	 * <ul>
+	 * <li>{@code -Dcrtk.lc0.backend=auto} (default): use the first available GPU backend
+	 * (CUDA, then ROCm, then oneAPI) that initializes successfully, else CPU</li>
+	 * <li>{@code -Dcrtk.lc0.backend=cpu}: force CPU</li>
+	 * <li>{@code -Dcrtk.lc0.backend=cuda}: force CUDA (throws if init fails/unavailable)</li>
+	 * <li>{@code -Dcrtk.lc0.backend=rocm|amd|hip}: force ROCm (AMD)</li>
+	 * <li>{@code -Dcrtk.lc0.backend=oneapi|intel}: force oneAPI (Intel)</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * Legacy compatibility: {@code ucicli.lc0.*}, {@code Ucicli.lc0.*}, and {@code lc0j.*} are also honored.
  *
  * <b>CPU threading</b>
  * <p>
- * The CPU backend parallelizes large convolutions over output channels using a
- * {@link ForkJoinPool}.
- * Configure with {@code -Ducicli.lc0.threads=N}.
+	 * The CPU backend parallelizes large convolutions over output channels using a
+	 * {@link ForkJoinPool}.
+	 * Configure with {@code -Dcrtk.lc0.threads=N}.
  *
  * <b>Inputs</b>
  * <ul>
@@ -103,19 +102,27 @@ public final class Network implements AutoCloseable {
     /**
      * Loads an LC0J {@code .bin} weights file.
      *
-     * <p>
-     * Depending on {@code -Ducicli.lc0.backend} (or legacy {@code lc0j.backend})
-     * and GPU availability, this will load either the CPU or a GPU backend.
+	     * <p>
+	     * Depending on {@code -Dcrtk.lc0.backend} (or legacy {@code ucicli.lc0.backend} / {@code lc0j.backend})
+	     * and GPU availability, this will load either the CPU or a GPU backend.
      *
      * @param path path to an LC0J binary weights file (magic {@code LC0J})
      * @return network evaluator
      * @throws IOException if the weights cannot be read/parsed, or if a forced
      *                     GPU backend fails to initialize
      */
-    public static Network load(Path path) throws IOException {
-        String backend = System.getProperty("ucicli.lc0.backend", System.getProperty("lc0j.backend", "auto"))
-                .trim()
-                .toLowerCase();
+	    public static Network load(Path path) throws IOException {
+	        String backend = System.getProperty("crtk.lc0.backend");
+	        if (backend == null) {
+	            backend = System.getProperty("ucicli.lc0.backend");
+	        }
+	        if (backend == null) {
+	            backend = System.getProperty("Ucicli.lc0.backend");
+	        }
+	        if (backend == null) {
+	            backend = System.getProperty("lc0j.backend", "auto");
+	        }
+	        backend = backend.trim().toLowerCase();
         boolean preferCuda = backend.equals("auto") || backend.equals("cuda");
         boolean preferRocm = backend.equals("auto") || backend.equals("rocm") || backend.equals("amd") || backend.equals("hip");
         boolean preferOneapi = backend.equals("auto") || backend.equals("oneapi") || backend.equals("intel");
@@ -581,11 +588,20 @@ public final class Network implements AutoCloseable {
          *
          * @return resolved thread count (at least 1)
          */
-        private static int parseThreads() {
-            String v = System.getProperty("ucicli.lc0.threads", System.getProperty("lc0j.threads"));
-            if (v == null || v.isBlank()) {
-                return Math.max(1, Runtime.getRuntime().availableProcessors());
-            }
+	        private static int parseThreads() {
+	            String v = System.getProperty("crtk.lc0.threads");
+	            if (v == null) {
+	                v = System.getProperty("ucicli.lc0.threads");
+	            }
+	            if (v == null) {
+	                v = System.getProperty("Ucicli.lc0.threads");
+	            }
+	            if (v == null) {
+	                v = System.getProperty("lc0j.threads");
+	            }
+	            if (v == null || v.isBlank()) {
+	                return Math.max(1, Runtime.getRuntime().availableProcessors());
+	            }
             try {
                 return Math.max(1, Integer.parseInt(v.trim()));
             } catch (NumberFormatException e) {

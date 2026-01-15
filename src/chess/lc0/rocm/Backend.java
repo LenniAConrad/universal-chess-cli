@@ -13,7 +13,8 @@ import chess.lc0.Network;
  *   <li>a ROCm device is present</li>
  * </ul>
  *
- * <p>{@link Network#load(Path)} selects this backend automatically when {@code -Ducicli.lc0.backend=auto} and ROCm is available.
+ * <p>{@link Network#load(Path)} selects this backend automatically when {@code -Dcrtk.lc0.backend=auto} and ROCm is available
+ * (legacy: {@code ucicli.lc0.*}, {@code lc0j.*}).
  *
  * <p>This class is a thin wrapper around native code. It owns native resources and must be closed.
  *

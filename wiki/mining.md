@@ -13,7 +13,7 @@ The mining logic is intentionally “data pipeline” shaped: start from seeds, 
 If you omit `--input`, seeds are generated randomly:
 
 ```bash
-ucicli mine --random-count 100 --output dump/
+crtk mine --random-count 100 --output dump/
 ```
 
 Use `--random-infinite` to keep generating seeds continuously (caps are disabled).

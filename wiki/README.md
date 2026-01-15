@@ -1,8 +1,8 @@
-# Universal Chess CLI wiki
+# ChessRTK docs (CLI: `crtk`)
 
-This folder holds the long-form docs for `ucicli`. The root `README.md` is intentionally short; start there for a quick build/run.
+This folder holds the long-form docs for ChessRTK (CLI: `crtk`). The root `README.md` is intentionally short; start there for a quick build/run.
 
-If you did **not** run `./install.sh`, replace `ucicli <command> ...` with `java -cp out application.Main <command> ...` (after building).
+If you did **not** run `./install.sh`, replace `crtk <command> ...` with `java -cp out application.Main <command> ...` (after building).
 
 ## Start here
 
@@ -19,6 +19,7 @@ If you did **not** run `./install.sh`, replace `ucicli <command> ...` with `java
 - [Outputs & logs](outputs-and-logs.md)
 - [Lc0 (UCI weights + Java evaluator)](lc0.md)
 - [Datasets](datasets.md)
+- [AI agents & automation](ai-agents.md)
 - [Troubleshooting](troubleshooting.md)
 
 ## Misc

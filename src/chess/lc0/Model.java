@@ -13,9 +13,10 @@ import java.nio.file.Path;
  *
  * <p>Backend selection is controlled by JVM system properties:
  * <ul>
- *   <li>{@code -Ducicli.lc0.backend=auto|cpu|cuda|rocm|amd|hip|oneapi|intel}</li>
- *   <li>{@code -Ducicli.lc0.threads=N} (CPU only)</li>
+ *   <li>{@code -Dcrtk.lc0.backend=auto|cpu|cuda|rocm|amd|hip|oneapi|intel}</li>
+ *   <li>{@code -Dcrtk.lc0.threads=N} (CPU only)</li>
  *   <li>{@code -Djava.library.path=...} (required to load the CUDA JNI library)</li>
+ *   <li>Legacy aliases still accepted: {@code ucicli.lc0.*}, {@code Ucicli.lc0.*}, {@code lc0j.*}</li>
  * </ul>
  *
  * @since 2025

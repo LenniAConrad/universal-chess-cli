@@ -19,7 +19,7 @@ import chess.struct.Game;
 import utility.Images;
 
 /**
- * Generates a GitHub banner image for ucicli.
+ * Generates a GitHub banner image for ChessRTK.
  *
  * <p>
  * The output is a centered render of a chess position (default: standard start),
@@ -31,13 +31,13 @@ import utility.Images;
  *
  * <pre>
  * java -cp out chess.images.render.GithubBanner \
- *   --out assets/ucicli-github-banner.png \
+ *   --out assets/crtk-github-banner.png \
  *   --width 1280 --height 640
  * </pre>
  *
  * <h2>Arguments</h2>
  * <ul>
- *   <li>{@code --out PATH} output PNG path (default: {@code assets/ucicli-github-banner.png})</li>
+ *   <li>{@code --out PATH} output PNG path (default: {@code assets/crtk-github-banner.png})</li>
  *   <li>{@code --width N} image width in pixels (default: {@code 1280})</li>
  *   <li>{@code --height N} image height in pixels (default: {@code 640})</li>
  *   <li>{@code --fen FEN} position to render (default: standard start FEN)</li>
@@ -73,7 +73,7 @@ public final class GithubBanner {
 
 		int width = a.intOr("--width", 1280);
 		int height = a.intOr("--height", 640);
-		String outPath = a.strOr("--out", "assets/ucicli-github-banner.png");
+		String outPath = a.strOr("--out", "assets/crtk-github-banner.png");
 		String fen = a.strOr("--fen", Game.STANDARD_START_FEN);
 
 		BufferedImage banner = renderBanner(width, height, fen);

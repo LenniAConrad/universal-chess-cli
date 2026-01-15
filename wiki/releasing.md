@@ -1,4 +1,4 @@
-# Releasing `ucicli`
+# Releasing ChessRTK (`crtk`)
 
 This repo is intentionally build-tool light: the CLI is a runnable Java 17 jar, and the optional CUDA backend is a small JNI library under `native/cuda/`.
 
@@ -23,14 +23,14 @@ scripts/make_release_linux_cuda.sh --version vX.Y.Z --include-models
 ```
 
 Outputs:
-- `dist/ucicli-vX.Y.Z-linux-x86_64-cuda.tar.gz`
+- `dist/crtk-vX.Y.Z-linux-x86_64-cuda.tar.gz`
 - `dist/SHA256SUMS`
 
 Quick smoke test (from the extracted artifact directory):
 
 ```bash
-./ucicli cuda-info
-./ucicli help
+./crtk gpu-info
+./crtk help
 ```
 
 ## GitHub release checklist
@@ -42,5 +42,5 @@ Quick smoke test (from the extracted artifact directory):
 3. Run the release build:
    - `scripts/make_release_linux_cuda.sh --version vX.Y.Z`
 4. Create a GitHub Release for tag `vX.Y.Z` and upload:
-   - `dist/ucicli-vX.Y.Z-linux-x86_64-cuda.tar.gz`
+   - `dist/crtk-vX.Y.Z-linux-x86_64-cuda.tar.gz`
    - `dist/SHA256SUMS`

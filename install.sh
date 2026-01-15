@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Universal Chess CLI installer (Ubuntu)
-# Repo: https://github.com/LenniAConrad/universal-chess-cli
-# Installs a launcher at /usr/local/bin/ucicli that runs from this repo.
+# crtk installer (Ubuntu)
+# Repo: https://github.com/LenniAConrad/chess-rtk
+# Installs a launcher at /usr/local/bin/crtk that runs from this repo.
 set -euo pipefail
 
-APP_NAME="ucicli"
+APP_NAME="crtk"
 REPO_OWNER="LenniAConrad"
-REPO_NAME="universal-chess-cli"
+REPO_NAME="ChessRTK"
 
 # Resolve repo root (assume script is placed in repo root)
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 APP_HOME="$(cd -- "$SCRIPT_DIR" && pwd)"
 OUT_DIR="$APP_HOME/out"
-JAR_PATH="$APP_HOME/ucicli.jar"
+JAR_PATH="$APP_HOME/crtk.jar"
 LAUNCHER="/usr/local/bin/$APP_NAME"
 
 CUDA_MODE="auto"      # auto|yes|no
@@ -21,6 +21,7 @@ ROCM_MODE="auto"      # auto|yes|no
 REQUIRE_ROCM=0
 ONEAPI_MODE="auto"    # auto|yes|no
 REQUIRE_ONEAPI=0
+INSTALL_LAUNCHER=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -63,13 +64,17 @@ while [[ $# -gt 0 ]]; do
       ONEAPI_MODE="no"
       shift
       ;;
+    --no-launcher)
+      INSTALL_LAUNCHER=0
+      shift
+      ;;
     -h|--help)
-      echo "Usage: ./install.sh [--cuda|--require-cuda|--no-cuda] [--rocm|--require-rocm|--no-rocm] [--oneapi|--require-oneapi|--no-oneapi]"
+      echo "Usage: ./install.sh [--cuda|--require-cuda|--no-cuda] [--rocm|--require-rocm|--no-rocm] [--oneapi|--require-oneapi|--no-oneapi] [--no-launcher]"
       exit 0
       ;;
     *)
       echo "Unknown argument: $1" >&2
-      echo "Usage: ./install.sh [--cuda|--require-cuda|--no-cuda] [--rocm|--require-rocm|--no-rocm] [--oneapi|--require-oneapi|--no-oneapi]" >&2
+      echo "Usage: ./install.sh [--cuda|--require-cuda|--no-cuda] [--rocm|--require-rocm|--no-rocm] [--oneapi|--require-oneapi|--no-oneapi] [--no-launcher]" >&2
       exit 2
       ;;
   esac
@@ -104,14 +109,228 @@ confirm() {
 }
 
 need_apt_update=0
+apt_update_once() {
+  if [[ $need_apt_update -eq 0 ]]; then
+    if ! $SUDO apt-get update -y; then
+      return 1
+    fi
+    need_apt_update=1
+  fi
+}
 apt_install() {
   local pkg="$1"
   if ! dpkg -s "$pkg" >/dev/null 2>&1; then
-    if [[ $need_apt_update -eq 0 ]]; then
-      $SUDO apt-get update -y
-      need_apt_update=1
+    if ! apt_update_once; then
+      return 1
     fi
-    $SUDO apt-get install -y "$pkg"
+    if ! $SUDO apt-get install -y "$pkg"; then
+      return 1
+    fi
+  fi
+}
+
+ubuntu_codename() {
+  if command -v lsb_release >/dev/null 2>&1; then
+    lsb_release -cs
+    return 0
+  fi
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    if [[ -n "${VERSION_CODENAME:-}" ]]; then
+      echo "$VERSION_CODENAME"
+      return 0
+    fi
+  fi
+  echo "jammy"
+}
+
+canonical_path() {
+  local p="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$p" <<'PY'
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+    return 0
+  fi
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -m "$p" 2>/dev/null || realpath "$p" 2>/dev/null || echo "$p"
+    return 0
+  fi
+  readlink -f "$p" 2>/dev/null || echo "$p"
+}
+
+cmake_cache_get() {
+  # cmake_cache_get KEY CMakeCache.txt
+  awk -F= -v k="$1" '$1==k{print $2; exit}' "$2" 2>/dev/null || true
+}
+
+detect_hipcc() {
+  if command -v hipcc >/dev/null 2>&1; then
+    command -v hipcc
+    return 0
+  fi
+  if [[ -x /opt/rocm/bin/hipcc ]]; then
+    echo "/opt/rocm/bin/hipcc"
+    return 0
+  fi
+  return 1
+}
+
+detect_oneapi_cxx() {
+  if command -v dpcpp >/dev/null 2>&1; then
+    command -v dpcpp
+    return 0
+  fi
+  if command -v icpx >/dev/null 2>&1; then
+    command -v icpx
+    return 0
+  fi
+  local p
+  p="/opt/intel/oneapi/compiler/latest/bin/dpcpp"
+  if [[ -x "$p" ]]; then
+    echo "$p"
+    return 0
+  fi
+  p="/opt/intel/oneapi/compiler/latest/bin/icpx"
+  if [[ -x "$p" ]]; then
+    echo "$p"
+    return 0
+  fi
+  # Fallback for older layouts
+  p="$(ls -1d /opt/intel/oneapi/compiler/*/bin/icpx 2>/dev/null | head -n1 || true)"
+  if [[ -n "$p" && -x "$p" ]]; then
+    echo "$p"
+    return 0
+  fi
+  p="$(ls -1d /opt/intel/oneapi/compiler/*/bin/dpcpp 2>/dev/null | head -n1 || true)"
+  if [[ -n "$p" && -x "$p" ]]; then
+    echo "$p"
+    return 0
+  fi
+  return 1
+}
+
+install_rocm_hip_toolchain() {
+  # Best-effort ROCm HIP toolchain install. May require adding AMD's apt repo.
+  if detect_hipcc >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Attempting to install ROCm HIP toolchain (hipcc)..."
+  if apt_install rocm-hip-sdk; then
+    :
+  else
+    echo "ROCm packages not available in current apt sources."
+    if ! confirm "Add AMD ROCm apt repo and install rocm-hip-sdk? (large)" "Y"; then
+      return 1
+    fi
+
+    apt_install ca-certificates || return 1
+    apt_install wget || return 1
+    apt_install gpg || return 1
+
+    local codename version
+    codename="$(ubuntu_codename)"
+    version="${ROCM_APT_VERSION:-6.0}"
+
+    $SUDO mkdir -p /etc/apt/keyrings
+    if ! wget -qO- "https://repo.radeon.com/rocm/rocm.gpg.key" | $SUDO gpg --dearmor -o /etc/apt/keyrings/rocm.gpg; then
+      echo "Failed to install ROCm apt key." >&2
+      return 1
+    fi
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/${version} ${codename} main" | \
+      $SUDO tee /etc/apt/sources.list.d/rocm.list >/dev/null
+
+    need_apt_update=0
+    apt_install rocm-hip-sdk || return 1
+  fi
+
+  local hipcc_bin=""
+  hipcc_bin="$(detect_hipcc 2>/dev/null || true)"
+  if [[ -z "$hipcc_bin" ]]; then
+    echo "hipcc still not found after installation. You may need to reboot or fix ROCm install." >&2
+    return 1
+  fi
+  return 0
+}
+
+install_oneapi_compiler() {
+  # Best-effort oneAPI DPC++ compiler install. May require adding Intel's apt repo.
+  if detect_oneapi_cxx >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Attempting to install Intel oneAPI DPC++ compiler (dpcpp/icpx)..."
+
+  if apt_install intel-oneapi-dpcpp-cpp-compiler || apt_install intel-oneapi-compiler-dpcpp-cpp; then
+    :
+  else
+    echo "Intel oneAPI packages not available in current apt sources."
+    if ! confirm "Add Intel oneAPI apt repo and install the compiler? (large)" "Y"; then
+      return 1
+    fi
+
+    apt_install ca-certificates || return 1
+    apt_install wget || return 1
+    apt_install gpg || return 1
+
+    $SUDO mkdir -p /usr/share/keyrings
+    if ! wget -qO- "https://apt.repos.intel.com/oneapi/gpgkey" | $SUDO gpg --dearmor -o /usr/share/keyrings/oneapi-archive-keyring.gpg; then
+      echo "Failed to install Intel oneAPI apt key." >&2
+      return 1
+    fi
+    echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | \
+      $SUDO tee /etc/apt/sources.list.d/oneapi.list >/dev/null
+
+    need_apt_update=0
+    if ! (apt_install intel-oneapi-dpcpp-cpp-compiler || apt_install intel-oneapi-compiler-dpcpp-cpp); then
+      return 1
+    fi
+  fi
+
+  local cxx=""
+  cxx="$(detect_oneapi_cxx 2>/dev/null || true)"
+  if [[ -z "$cxx" ]]; then
+    echo "dpcpp/icpx still not found after installation. You may need to source oneAPI env:" >&2
+    echo "  source /opt/intel/oneapi/setvars.sh" >&2
+    return 1
+  fi
+  return 0
+}
+
+prepare_cmake_build_dir() {
+  # prepare_cmake_build_dir SOURCE_DIR BUILD_DIR
+  # If BUILD_DIR contains a stale cache from a different source/build path, wipe it to avoid:
+  # "CMakeCache.txt directory ... is different..." / "source ... does not match ..."
+  local source_dir="$1"
+  local build_dir="$2"
+
+  mkdir -p "$build_dir"
+  local cache_file="$build_dir/CMakeCache.txt"
+  if [[ ! -f "$cache_file" ]]; then
+    return 0
+  fi
+
+  local cache_home cache_build expected_home expected_build
+  cache_home="$(cmake_cache_get "CMAKE_HOME_DIRECTORY:INTERNAL" "$cache_file")"
+  cache_build="$(cmake_cache_get "CMAKE_CACHEFILE_DIR:INTERNAL" "$cache_file")"
+  expected_home="$(canonical_path "$source_dir")"
+  expected_build="$(canonical_path "$build_dir")"
+
+  if [[ -n "$cache_home" && "$(canonical_path "$cache_home")" != "$expected_home" ]] || \
+     [[ -n "$cache_build" && "$(canonical_path "$cache_build")" != "$expected_build" ]]; then
+    if [[ "$build_dir" != "$APP_HOME/"* || "$build_dir" == "$APP_HOME" || "$build_dir" == "/" ]]; then
+      echo "Refusing to clean suspicious CMake build dir: $build_dir" >&2
+      return 1
+    fi
+    echo "Detected stale CMake cache in: $build_dir"
+    echo "  cache source: ${cache_home:-<unknown>}"
+    echo "  cache build:  ${cache_build:-<unknown>}"
+    echo "Cleaning build directory to reconfigure..."
+    rm -rf "$build_dir"
+    mkdir -p "$build_dir"
   fi
 }
 
@@ -260,6 +479,7 @@ try_build_cuda_backend() {
   echo "Building CUDA backend (native/cuda)..."
   maybe_export_java_home
 
+  prepare_cmake_build_dir "$APP_HOME/native/cuda" "$CUDA_BUILD_DIR"
   if cmake -S "$APP_HOME/native/cuda" -B "$CUDA_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release && \
      cmake --build "$CUDA_BUILD_DIR" -j "$JOBS"; then
     if [[ -f "$CUDA_LIB_SO" ]]; then
@@ -282,7 +502,9 @@ try_build_cuda_backend() {
 }
 
 manual_build_rocm_backend() {
-  if ! command -v hipcc >/dev/null 2>&1; then
+  local hipcc_bin=""
+  hipcc_bin="$(detect_hipcc 2>/dev/null || true)"
+  if [[ -z "$hipcc_bin" ]]; then
     echo "hipcc not found."
     return 1
   fi
@@ -300,7 +522,7 @@ manual_build_rocm_backend() {
   mkdir -p "$ROCM_BUILD_DIR"
   echo
   echo "Building ROCm backend (native/rocm) via hipcc (CMake fallback)..."
-  if hipcc -shared -fPIC -O3 --std=c++17 \
+  if "$hipcc_bin" -shared -fPIC -O3 --std=c++17 \
       -I"${JAVA_HOME}/include" -I"${JAVA_HOME}/include/linux" \
       -o "$ROCM_LIB_SO" "$APP_HOME/native/rocm/lc0j_rocm_jni.hip"; then
     return 0
@@ -344,10 +566,21 @@ try_build_rocm_backend() {
     fi
   fi
 
-  if ! command -v hipcc >/dev/null 2>&1; then
-    echo "ROCm toolchain (hipcc) not found. Please install ROCm and hipcc."
-    ROCM_RESULT="failed"
-    return 0
+  local hipcc_bin=""
+  hipcc_bin="$(detect_hipcc 2>/dev/null || true)"
+  if [[ -z "$hipcc_bin" ]]; then
+    echo "ROCm toolchain (hipcc) not found."
+    if confirm "Install ROCm HIP toolchain now? (may add AMD apt repo; large)" "Y"; then
+      if ! install_rocm_hip_toolchain; then
+        echo "Failed to install ROCm HIP toolchain."
+        ROCM_RESULT="failed"
+        return 0
+      fi
+      hipcc_bin="$(detect_hipcc 2>/dev/null || true)"
+    else
+      ROCM_RESULT="failed"
+      return 0
+    fi
   fi
 
   if ! command -v cmake >/dev/null 2>&1; then
@@ -365,7 +598,8 @@ try_build_rocm_backend() {
   echo "Building ROCm backend (native/rocm)..."
   maybe_export_java_home
 
-  if cmake -S "$APP_HOME/native/rocm" -B "$ROCM_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_HIP_COMPILER=hipcc && \
+  prepare_cmake_build_dir "$APP_HOME/native/rocm" "$ROCM_BUILD_DIR"
+  if cmake -S "$APP_HOME/native/rocm" -B "$ROCM_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_HIP_COMPILER="$hipcc_bin" && \
      cmake --build "$ROCM_BUILD_DIR" -j "$JOBS"; then
     if [[ -f "$ROCM_LIB_SO" ]]; then
       echo "ROCm backend built: $ROCM_LIB_SO"
@@ -387,11 +621,7 @@ try_build_rocm_backend() {
 
 manual_build_oneapi_backend() {
   local cxx=""
-  if command -v dpcpp >/dev/null 2>&1; then
-    cxx="dpcpp"
-  elif command -v icpx >/dev/null 2>&1; then
-    cxx="icpx"
-  fi
+  cxx="$(detect_oneapi_cxx 2>/dev/null || true)"
   if [[ -z "$cxx" ]]; then
     echo "dpcpp/icpx not found."
     return 1
@@ -455,15 +685,20 @@ try_build_oneapi_backend() {
   fi
 
   local oneapi_cxx=""
-  if command -v dpcpp >/dev/null 2>&1; then
-    oneapi_cxx="dpcpp"
-  elif command -v icpx >/dev/null 2>&1; then
-    oneapi_cxx="icpx"
-  fi
+  oneapi_cxx="$(detect_oneapi_cxx 2>/dev/null || true)"
   if [[ -z "$oneapi_cxx" ]]; then
-    echo "oneAPI compiler (dpcpp/icpx) not found. Please install the Intel oneAPI DPC++ compiler."
-    ONEAPI_RESULT="failed"
-    return 0
+    echo "oneAPI compiler (dpcpp/icpx) not found."
+    if confirm "Install Intel oneAPI DPC++ compiler now? (may add Intel apt repo; large)" "Y"; then
+      if ! install_oneapi_compiler; then
+        echo "Failed to install Intel oneAPI compiler."
+        ONEAPI_RESULT="failed"
+        return 0
+      fi
+      oneapi_cxx="$(detect_oneapi_cxx 2>/dev/null || true)"
+    else
+      ONEAPI_RESULT="failed"
+      return 0
+    fi
   fi
 
   if ! command -v cmake >/dev/null 2>&1; then
@@ -481,6 +716,7 @@ try_build_oneapi_backend() {
   echo "Building oneAPI backend (native/oneapi)..."
   maybe_export_java_home
 
+  prepare_cmake_build_dir "$APP_HOME/native/oneapi" "$ONEAPI_BUILD_DIR"
   if cmake -S "$APP_HOME/native/oneapi" -B "$ONEAPI_BUILD_DIR" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="$oneapi_cxx" && \
      cmake --build "$ONEAPI_BUILD_DIR" -j "$JOBS"; then
     if [[ -f "$ONEAPI_LIB_SO" ]]; then
@@ -501,7 +737,7 @@ try_build_oneapi_backend() {
   return 0
 }
 
-echo "Universal Chess CLI installer ~"
+echo "crtk installer ~"
 echo "Repo path: $APP_HOME"
 echo
 
@@ -578,9 +814,10 @@ if [[ $REQUIRE_ONEAPI -eq 1 && "$ONEAPI_RESULT" != "built" ]]; then
   exit 1
 fi
 
-echo "Installing launcher to $LAUNCHER ..."
-LAUNCHER_TMP="$(mktemp)"
-cat > "$LAUNCHER_TMP" <<EOF
+if [[ $INSTALL_LAUNCHER -eq 1 ]]; then
+  echo "Installing launcher to $LAUNCHER ..."
+  LAUNCHER_TMP="$(mktemp)"
+  cat > "$LAUNCHER_TMP" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 APP_HOME="$APP_HOME"
@@ -603,15 +840,20 @@ if [[ \${#LIB_DIRS[@]} -gt 0 && "\$JAVA_OPTS" != *"-Djava.library.path="* ]]; th
   LIB_OPT="-Djava.library.path=\$LIB_PATH"
 fi
 # shellcheck disable=SC2086
-exec "\$JAVA_BIN" \$JAVA_OPTS \$LIB_OPT -jar "\$APP_HOME/ucicli.jar" "\$@"
+exec "\$JAVA_BIN" \$JAVA_OPTS \$LIB_OPT -jar "\$APP_HOME/crtk.jar" "\$@"
 EOF
 
-$SUDO mv "$LAUNCHER_TMP" "$LAUNCHER"
-$SUDO chmod +x "$LAUNCHER"
+  $SUDO mv "$LAUNCHER_TMP" "$LAUNCHER"
+  $SUDO chmod +x "$LAUNCHER"
+else
+  echo "Skipping launcher install (--no-launcher)."
+fi
 
 echo
 echo "== Done =="
-echo "Launcher installed: $LAUNCHER"
+if [[ $INSTALL_LAUNCHER -eq 1 ]]; then
+  echo "Launcher installed: $LAUNCHER"
+fi
 if [[ "$CUDA_RESULT" == "built" ]]; then
   echo "CUDA backend: built ($CUDA_LIB_SO)"
 elif [[ "$CUDA_RESULT" == "failed" ]]; then
@@ -647,15 +889,15 @@ echo "Optional (LC0 GPU JNI):"
 echo "  CUDA:"
 echo "    cmake -S native/cuda -B native/cuda/build -DCMAKE_BUILD_TYPE=Release"
 echo "    cmake --build native/cuda/build -j"
-echo "    java -cp out -Djava.library.path=native/cuda/build -Ducicli.lc0.backend=cuda application.Main display --fen \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\" --show-backend"
+echo "    java -cp out -Djava.library.path=native/cuda/build -Dcrtk.lc0.backend=cuda application.Main display --fen \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\" --show-backend"
 echo "  ROCm:"
 echo "    cmake -S native/rocm -B native/rocm/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_HIP_COMPILER=hipcc"
 echo "    cmake --build native/rocm/build -j"
-echo "    java -cp out -Djava.library.path=native/rocm/build -Ducicli.lc0.backend=rocm application.Main display --fen \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\" --show-backend"
+echo "    java -cp out -Djava.library.path=native/rocm/build -Dcrtk.lc0.backend=rocm application.Main display --fen \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\" --show-backend"
 echo "  oneAPI:"
 echo "    cmake -S native/oneapi -B native/oneapi/build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=dpcpp"
 echo "    cmake --build native/oneapi/build -j"
-echo "    java -cp out -Djava.library.path=native/oneapi/build -Ducicli.lc0.backend=oneapi application.Main display --fen \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\" --show-backend"
+echo "    java -cp out -Djava.library.path=native/oneapi/build -Dcrtk.lc0.backend=oneapi application.Main display --fen \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\" --show-backend"
 echo "  (See native/cuda/README.md for CUDA details.)"
 echo
 echo "Tip: You can run from anywhere using '$APP_NAME'."

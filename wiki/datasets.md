@@ -13,7 +13,7 @@ Output (NumPy `.npy`, float32):
 Example:
 
 ```bash
-ucicli record-to-dataset -i dump/run.puzzles.json -o training/pytorch/data/puzzles
+crtk record-to-dataset -i dump/run.puzzles.json -o training/pytorch/data/puzzles
 ```
 
 ## From Stack dumps: `stack-to-dataset`
@@ -25,7 +25,7 @@ Output: the same `(N, 781)` / `(N,)` tensors as above.
 Example:
 
 ```bash
-ucicli stack-to-dataset -i Stack-0001.json -o training/pytorch/data/stack_0001
+crtk stack-to-dataset -i Stack-0001.json -o training/pytorch/data/stack_0001
 ```
 
 ## Converting `.npy` → PyTorch shards

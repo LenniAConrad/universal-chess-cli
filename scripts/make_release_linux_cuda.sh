@@ -6,12 +6,12 @@ usage() {
 Usage: scripts/make_release_linux_cuda.sh [--version <vX.Y.Z>] [--include-models]
 
 Builds:
-  - ucicli.jar (Java 17, pure javac)
+  - crtk.jar (Java 17, pure javac)
   - native/cuda/build/liblc0j_cuda.so (CMake + NVCC)
 
 Packages a Linux x86_64 CUDA-enabled release under:
-  dist/ucicli-<version>-linux-x86_64-cuda/
-  dist/ucicli-<version>-linux-x86_64-cuda.tar.gz
+  dist/crtk-<version>-linux-x86_64-cuda/
+  dist/crtk-<version>-linux-x86_64-cuda.tar.gz
 
 Examples:
   scripts/make_release_linux_cuda.sh --version v0.1.0
@@ -72,11 +72,11 @@ if ! command -v nvcc >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "== Building Java (ucicli.jar) =="
+echo "== Building Java (crtk.jar) =="
 rm -rf out
 mkdir -p out
 find src -name "*.java" -print0 | xargs -0 javac --release 17 -d out
-jar --create --file ucicli.jar --main-class application.Main -C out .
+jar --create --file crtk.jar --main-class application.Main -C out .
 
 echo "== Building CUDA JNI (liblc0j_cuda.so) =="
 cmake -S native/cuda -B native/cuda/build -DCMAKE_BUILD_TYPE=Release
@@ -88,13 +88,13 @@ if [[ ! -f "$cuda_lib" ]]; then
   exit 1
 fi
 
-artifact="ucicli-${VERSION}-linux-x86_64-cuda"
+artifact="crtk-${VERSION}-linux-x86_64-cuda"
 stage_dir="dist/${artifact}"
 rm -rf "$stage_dir"
 mkdir -p "$stage_dir/lib"
 
 echo "== Staging files: $stage_dir =="
-cp -f ucicli.jar "$stage_dir/"
+cp -f crtk.jar "$stage_dir/"
 cp -f "$cuda_lib" "$stage_dir/lib/"
 cp -f LICENSE.txt "$stage_dir/"
 cp -f README.md "$stage_dir/"
@@ -105,7 +105,7 @@ if [[ $INCLUDE_MODELS -eq 1 ]]; then
   cp -r models "$stage_dir/"
 fi
 
-cat > "$stage_dir/ucicli" <<'EOF'
+cat > "$stage_dir/crtk" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -120,9 +120,9 @@ if [[ -f "$CUDA_LIB_DIR/liblc0j_cuda.so" && "$JAVA_OPTS" != *"-Djava.library.pat
 fi
 
 # shellcheck disable=SC2086
-exec "$JAVA_BIN" $JAVA_OPTS $CUDA_OPT -jar "$APP_HOME/ucicli.jar" "$@"
+exec "$JAVA_BIN" $JAVA_OPTS $CUDA_OPT -jar "$APP_HOME/crtk.jar" "$@"
 EOF
-chmod +x "$stage_dir/ucicli"
+chmod +x "$stage_dir/crtk"
 
 echo "== Creating tarball =="
 tarball="dist/${artifact}.tar.gz"

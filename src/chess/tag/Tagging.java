@@ -104,9 +104,9 @@ public final class Tagging {
                         // best-effort cleanup
                     }
                 }
-            }, "ucicli-tagging-evaluator-shutdown"));
-        }
-    }
+	            }, "crtk-tagging-evaluator-shutdown"));
+	        }
+	    }
 
     /**
      * Immutable list of tag providers that contribute to every tagx run.

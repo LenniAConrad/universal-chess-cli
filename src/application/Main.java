@@ -73,7 +73,7 @@ import utility.Json;
  * <p>
 	 * Recognized subcommands are {@code record-to-plain}, {@code record-to-csv},
 	 * {@code record-to-pgn}, {@code record-to-dataset}, {@code stack-to-dataset},
-	 * {@code cuda-info}, {@code mine}, {@code gen-fens}, {@code print}, {@code display},
+	 * {@code gpu-info}, {@code mine}, {@code gen-fens}, {@code print}, {@code display},
 	 * {@code render}, {@code clean}, {@code config}, {@code stats},
 	 * {@code stats-tags}, {@code tags}, {@code moves}, {@code analyze},
 	 * {@code bestmove}, {@code perft}, {@code pgn-to-fens}, {@code eval},
@@ -136,7 +136,7 @@ public final class Main {
 			case CMD_RECORD_TO_DATASET -> runRecordToDataset(b);
 			case CMD_RECORD_TO_PGN -> runRecordToPgn(b);
 			case CMD_STACK_TO_DATASET -> runStackToDataset(b);
-			case CMD_CUDA_INFO -> runCudaInfo(b);
+			case CMD_GPU_INFO, CMD_CUDA_INFO -> runCudaInfo(b);
 			case CMD_GEN_FENS -> runGenerateFens(b);
 			case CMD_MINE -> runMine(b);
 			case CMD_PRINT -> runPrint(b);
@@ -2534,7 +2534,9 @@ public final class Main {
 	private static void helpSummary() {
 		System.out.println(
 				"""
-						usage: ucicli <command> [options]
+						crtk — ChessRTK (chess research toolkit)
+
+						usage: crtk <command> [options]
 
 						commands:
 						  record-to-plain   Convert .record JSON to .plain
@@ -2542,7 +2544,7 @@ public final class Main {
 						  record-to-pgn     Convert .record JSON to PGN games
 						  record-to-dataset Convert .record JSON to NPY tensors (features/labels)
 						  stack-to-dataset  Convert Stack-*.json puzzle dumps to NPY tensors
-						  cuda-info         Print GPU JNI backend status
+						  gpu-info          Print GPU JNI backend status
 						  gen-fens          Generate random legal FEN shards (standard + Chess960 mix)
 						  mine              Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
 						  print             Pretty-print a FEN
@@ -2562,8 +2564,8 @@ public final class Main {
 						  help              Show command help
 
 						tips:
-						  ucicli help <command>       Show help for one command
-						  ucicli help --full          Show full help output
+						  crtk help <command>       Show help for one command
+						  crtk help --full          Show full help output
 						""");
 	}
 
@@ -2594,7 +2596,7 @@ public final class Main {
 			helpSummary();
 			return;
 		}
-		System.out.println("usage: ucicli " + command + " [options]\n\n" + section);
+		System.out.println("usage: crtk " + command + " [options]\n\n" + section);
 	}
 
 	/**
@@ -2611,7 +2613,7 @@ public final class Main {
 			case CMD_RECORD_TO_DATASET -> "record-to-dataset options:";
 			case CMD_RECORD_TO_PGN -> "record-to-pgn options:";
 			case CMD_STACK_TO_DATASET -> "stack-to-dataset options:";
-			case CMD_CUDA_INFO -> "cuda-info options:";
+				case CMD_GPU_INFO, CMD_CUDA_INFO -> "gpu-info options:";
 			case CMD_GEN_FENS -> "gen-fens options:";
 			case CMD_MINE -> "mine options (overrides & inputs):";
 			case CMD_PRINT -> "print options:";
@@ -2676,7 +2678,9 @@ public final class Main {
 	 */
 	private static final String HELP_FULL_TEXT =
 			"""
-						usage: ucicli <command> [options]
+						crtk — ChessRTK (chess research toolkit)
+
+						usage: crtk <command> [options]
 
 						commands:
 						  record-to-plain Convert .record JSON to .plain
@@ -2684,7 +2688,7 @@ public final class Main {
 						  record-to-pgn  Convert .record JSON to PGN games
 						  record-to-dataset Convert .record JSON to NPY tensors (features/labels)
 						  stack-to-dataset Convert Stack-*.json puzzle dumps to NPY tensors
-						  cuda-info Print GPU JNI backend status
+						  gpu-info Print GPU JNI backend status
 						  gen-fens  Generate random legal FEN shards (standard + Chess960 mix)
 						  mine      Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
 						  print     Pretty-print a FEN
@@ -2728,7 +2732,7 @@ public final class Main {
 						  --input|-i <path>          Input Stack-*.json file (required, JSON array)
 						  --output|-o <path>         Output stem (writes <stem>.features.npy, <stem>.labels.npy)
 
-						cuda-info options:
+						gpu-info options:
 						  (no options)
 
 						gen-fens options:

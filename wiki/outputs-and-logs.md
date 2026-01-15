@@ -17,5 +17,5 @@ The CLI writes logs under `session/` via `chess.debug.LogService`.
 To clear session artifacts:
 
 ```bash
-ucicli clean
+crtk clean
 ```

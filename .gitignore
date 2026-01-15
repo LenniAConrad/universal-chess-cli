@@ -9,7 +9,7 @@ dump/*
 # Build artifacts
 out/
 out-*/
-ucicli.jar
+crtk.jar
 dist/
 
 # LC0 / model weights (large, third-party)

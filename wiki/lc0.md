@@ -42,13 +42,14 @@ Defaults:
 - backend: `cpu` unless the optional CUDA JNI backend is available
 
 Backend selection (system properties):
-- `-Ducicli.lc0.backend=auto|cpu|cuda` (default `auto`)
-- `-Ducicli.lc0.threads=N` (CPU backend only)
+- `-Dcrtk.lc0.backend=auto|cpu|cuda` (default `auto`)
+- `-Dcrtk.lc0.threads=N` (CPU backend only)
+- Legacy aliases still accepted: `ucicli.lc0.*`, `lc0j.*`
 
 To see which backend is being used in practice (opens a window), run:
 
 ```bash
-ucicli display --fen "<FEN>" --show-backend
+crtk display --fen "<FEN>" --show-backend
 ```
 
 ### CUDA backend (optional)
@@ -63,7 +64,7 @@ cmake --build native/cuda/build -j
 Then run Java with the library on `java.library.path`:
 
 ```bash
-java -cp out -Djava.library.path=native/cuda/build -Ducicli.lc0.backend=cuda application.Main display --fen "<FEN>" --show-backend
+java -cp out -Djava.library.path=native/cuda/build -Dcrtk.lc0.backend=cuda application.Main display --fen "<FEN>" --show-backend
 ```
 
 See `native/cuda/README.md` for more details.

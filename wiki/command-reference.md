@@ -2,7 +2,7 @@
 
 All commands are subcommands of `application.Main`.
 
-- Installed launcher: `ucicli <command> ...`
+- Installed launcher: `crtk <command> ...`
 - From classes: `java -cp out application.Main <command> ...`
 - Proposed/future additions: `roadmap.md`
 
@@ -53,12 +53,12 @@ Options:
 - `--input|-i <path>`: input `Stack-*.json` (required)
 - `--output|-o <path>`: output stem (optional; default derived when omitted)
 
-## `cuda-info`
+## `gpu-info`
 
-Print whether the optional CUDA JNI backend is available (and how many CUDA devices it sees).
+Print whether the optional GPU JNI backends are available (CUDA/ROCm/oneAPI) and what devices they see.
 
 Notes:
-- If you built the native library under `native/cuda/`, run with `-Djava.library.path=native/cuda/build`.
+- If you built a native library under `native/cuda/`, run with `-Djava.library.path=native/cuda/build`.
 
 ## `gen-fens`
 
