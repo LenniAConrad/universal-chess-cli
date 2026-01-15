@@ -123,27 +123,9 @@ crtk record-to-dataset --input dump/run.puzzles.json --output training/puzzles
 
 ## Pipeline overview
 
-```mermaid
-flowchart LR
-  PGN[PGN] --> FENS[pgn-to-fens]
-  FENLIST[FEN list (.txt)] --> M[mine]
-  RAND[Random seeds] --> M
-  FENS --> FENLIST
+![ChessRTK pipeline overview](assets/crtk-pipeline-overview.png)
 
-  M --> P[*.puzzles.json]
-  M --> N[*.nonpuzzles.json]
-
-  P --> STATS[stats / stats-tags]
-  P --> CONV[record-to-plain / record-to-csv / record-to-pgn]
-  P --> DS[record-to-dataset]
-  N --> STATS
-  N --> CONV
-  N --> DS
-
-  STACK[Stack-*.json] --> SDS[stack-to-dataset]
-  DS --> OUT[(features + labels)]
-  SDS --> OUT
-```
+Diagram source: `assets/crtk-pipeline-overview.dot` (render with `dot -Tpng -Gdpi=160 -o assets/crtk-pipeline-overview.png assets/crtk-pipeline-overview.dot`).
 
 ## Docs (full)
 

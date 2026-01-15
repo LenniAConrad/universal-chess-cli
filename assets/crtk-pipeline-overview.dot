@@ -1,0 +1,121 @@
+digraph crtk_pipeline_overview {
+  rankdir=LR;
+  bgcolor="transparent";
+  splines=ortho;
+  pad="0.20";
+  nodesep="0.35";
+  ranksep="0.55";
+
+  graph [fontname="Helvetica", fontsize=14];
+  node  [fontname="Helvetica", fontsize=12];
+  edge  [fontname="Helvetica", fontsize=10, color="#444444", arrowsize=0.8, penwidth=1.2];
+
+  subgraph cluster_seed {
+    label="Seed generation";
+    style="rounded";
+    color="#B39DDB";
+    fontcolor="#311B92";
+    penwidth=1.4;
+
+    node [shape=note, style="filled", fillcolor="#F3E5F5", color="#6A1B9A", penwidth=1.2];
+    pgn [label="PGN games\n(games.pgn)"];
+    fens [label="FEN seed list\n(seeds.txt)"];
+
+    node [shape=box, style="rounded,filled", fillcolor="#EDE7F6", color="#4527A0", penwidth=1.2];
+    pgn_to_fens [label="pgn-to-fens"];
+  }
+
+  subgraph cluster_mining {
+    label="Mining";
+    style="rounded";
+    color="#90CAF9";
+    fontcolor="#0D47A1";
+    penwidth=1.4;
+
+    node [shape=oval, style="filled", fillcolor="#E3F2FD", color="#1565C0", penwidth=1.2];
+    random [label="Random\nseeds"];
+
+    node [shape=box, style="rounded,filled", fillcolor="#E3F2FD", color="#1565C0", penwidth=1.2];
+    mine [label="mine"];
+
+    node [shape=note, style="filled", fillcolor="#E1F5FE", color="#0277BD", penwidth=1.2];
+    puzzles [label="*.puzzles.json"];
+    nonpuzzles [label="*.nonpuzzles.json"];
+  }
+
+  subgraph cluster_post {
+    label="Post-processing / export";
+    style="rounded";
+    color="#A5D6A7";
+    fontcolor="#1B5E20";
+    penwidth=1.4;
+
+    node [shape=box, style="rounded,filled", fillcolor="#E8F5E9", color="#2E7D32", penwidth=1.2];
+    stats [label="stats"];
+    stats_tags [label="stats-tags"];
+    record_to_csv [label="record-to-csv"];
+    record_to_pgn [label="record-to-pgn"];
+    record_to_plain [label="record-to-plain"];
+    record_to_dataset [label="record-to-dataset"];
+
+    node [shape=note, style="filled", fillcolor="#F1F8E9", color="#558B2F", penwidth=1.2];
+    out_csv [label="puzzles.csv"];
+    out_pgn [label="puzzles.pgn"];
+    out_plain [label="puzzles.plain"];
+
+    node [shape=cylinder, style="filled", fillcolor="#E8F5E9", color="#2E7D32", penwidth=1.2];
+    tensors [label="features + labels\n(tensor files)"];
+  }
+
+  subgraph cluster_stack {
+    label="Stack dataset export";
+    style="rounded";
+    color="#FFCC80";
+    fontcolor="#E65100";
+    penwidth=1.4;
+
+    node [shape=note, style="filled", fillcolor="#FFF3E0", color="#EF6C00", penwidth=1.2];
+    stack [label="Stack dump\n(Stack-*.json)"];
+
+    node [shape=box, style="rounded,filled", fillcolor="#FFF8E1", color="#EF6C00", penwidth=1.2];
+    stack_to_dataset [label="stack-to-dataset"];
+  }
+
+  // Seed generation
+  pgn -> pgn_to_fens;
+  pgn_to_fens -> fens;
+
+  // Mining
+  fens -> mine;
+  random -> mine;
+  mine -> puzzles;
+  mine -> nonpuzzles;
+
+  // Post-processing (puzzles + nonpuzzles)
+  puzzles -> stats;
+  nonpuzzles -> stats [style=dashed];
+
+  puzzles -> stats_tags;
+  nonpuzzles -> stats_tags [style=dashed];
+
+  puzzles -> record_to_csv;
+  puzzles -> record_to_pgn;
+  puzzles -> record_to_plain;
+  puzzles -> record_to_dataset;
+
+  nonpuzzles -> record_to_csv [style=dashed];
+  nonpuzzles -> record_to_pgn [style=dashed];
+  nonpuzzles -> record_to_plain [style=dashed];
+  nonpuzzles -> record_to_dataset [style=dashed];
+
+  record_to_csv -> out_csv;
+  record_to_pgn -> out_pgn;
+  record_to_plain -> out_plain;
+
+  record_to_dataset -> tensors;
+
+  // Stack dataset export
+  stack -> stack_to_dataset;
+  stack_to_dataset -> tensors;
+}
+
