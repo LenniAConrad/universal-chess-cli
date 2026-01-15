@@ -73,7 +73,7 @@ import utility.Json;
  * <p>
 	 * Recognized subcommands are {@code record-to-plain}, {@code record-to-csv},
 	 * {@code record-to-pgn}, {@code record-to-dataset}, {@code stack-to-dataset},
-	 * {@code gpu-info}, {@code mine}, {@code gen-fens}, {@code print}, {@code display},
+	 * {@code gpu-info}, {@code mine-puzzles}, {@code gen-fens}, {@code print}, {@code display},
 	 * {@code render}, {@code clean}, {@code config}, {@code stats},
 	 * {@code stats-tags}, {@code tags}, {@code moves}, {@code analyze},
 	 * {@code bestmove}, {@code threats}, {@code perft}, {@code pgn-to-fens}, {@code eval},
@@ -136,9 +136,9 @@ public final class Main {
 			case CMD_RECORD_TO_DATASET -> runRecordToDataset(b);
 			case CMD_RECORD_TO_PGN -> runRecordToPgn(b);
 			case CMD_STACK_TO_DATASET -> runStackToDataset(b);
-			case CMD_GPU_INFO, CMD_CUDA_INFO -> runCudaInfo(b);
+			case CMD_GPU_INFO, CMD_CUDA_INFO -> runGpuInfo(b);
 			case CMD_GEN_FENS -> runGenerateFens(b);
-			case CMD_MINE -> runMine(b);
+			case CMD_MINE_PUZZLES, CMD_MINE -> runMine(b);
 			case CMD_PRINT -> runPrint(b);
 			case CMD_DISPLAY -> runDisplay(b);
 			case CMD_RENDER -> runRenderImage(b);
@@ -326,7 +326,7 @@ public final class Main {
 	 * {@code -Djava.library.path=native/cuda/build:native/rocm/build:native/oneapi/build}.
 	 * </p>
 	 */
-	private static void runCudaInfo(Argv a) {
+	private static void runGpuInfo(Argv a) {
 		a.ensureConsumed();
 
 		boolean loaded = chess.lc0.cuda.Support.isLoaded();
@@ -2744,7 +2744,7 @@ public final class Main {
 						  stack-to-dataset  Convert Stack-*.json puzzle dumps to NPY tensors
 						  gpu-info          Print GPU JNI backend status
 						  gen-fens          Generate random legal FEN shards (standard + Chess960 mix)
-						  mine              Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
+						  mine-puzzles      Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
 						  print             Pretty-print a FEN
 						  display           Render a board image in a window
 						  render            Save a board image to disk
@@ -2812,9 +2812,9 @@ public final class Main {
 			case CMD_RECORD_TO_DATASET -> "record-to-dataset options:";
 			case CMD_RECORD_TO_PGN -> "record-to-pgn options:";
 			case CMD_STACK_TO_DATASET -> "stack-to-dataset options:";
-				case CMD_GPU_INFO, CMD_CUDA_INFO -> "gpu-info options:";
+			case CMD_GPU_INFO, CMD_CUDA_INFO -> "gpu-info options:";
 			case CMD_GEN_FENS -> "gen-fens options:";
-			case CMD_MINE -> "mine options (overrides & inputs):";
+			case CMD_MINE_PUZZLES, CMD_MINE -> "mine-puzzles options (overrides & inputs):";
 			case CMD_PRINT -> "print options:";
 			case CMD_DISPLAY -> "display options:";
 			case CMD_RENDER -> "render options:";
@@ -2890,7 +2890,7 @@ public final class Main {
 						  stack-to-dataset Convert Stack-*.json puzzle dumps to NPY tensors
 						  gpu-info Print GPU JNI backend status
 						  gen-fens  Generate random legal FEN shards (standard + Chess960 mix)
-						  mine      Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
+						  mine-puzzles Mine chess puzzles (supports Chess960 / PGN / FEN list / random)
 						  print     Pretty-print a FEN
 						  display   Render a board image in a window
 						  render    Save a board image to disk
@@ -2947,7 +2947,7 @@ public final class Main {
 						  --ascii                    Render ASCII progress bar
 						  --verbose|-v               Print stack trace on failure
 
-						mine options (overrides & inputs):
+						mine-puzzles options (overrides & inputs):
 						  --chess960|-9               Enable Chess960 mining
 						  --input|-i <path>           PGN or TXT with FENs; omit to use random
 						  --output|-o <path>          Output path/dir for puzzles
@@ -3108,7 +3108,7 @@ public final class Main {
 						""";
 
 	/**
-	 * Used for handling the {@code mine} subcommand.
+	 * Used for handling the {@code mine-puzzles} subcommand.
 	 *
 	 * <p>
 	 * Resolves runtime configuration and filters, loads or generates seed

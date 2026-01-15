@@ -8,7 +8,7 @@ Loaded on startup. If the file is missing, the CLI will create it with built-in 
 
 Common keys:
 - `protocol-path`: points to the engine protocol file (default `config/default.engine.toml`)
-- `output`: default output root for `mine` (default `dump/`)
+- `output`: default output root for `mine-puzzles` (default `dump/`)
 - `engine-instances`: how many engine processes to run in parallel
 - `max-nodes`: per-position node cap
 - `max-duration`: per-position time cap (ms)
@@ -16,7 +16,7 @@ Common keys:
 
 Notes:
 - CLI flags override TOML values for a single run.
-- For `mine --output`, a directory produces timestamped outputs; a file-like root ending in `.json`/`.jsonl` produces `<stem>.puzzles.json` and `<stem>.nonpuzzles.json`.
+- For `mine-puzzles --output`, a directory produces timestamped outputs; a file-like root ending in `.json`/`.jsonl` produces `<stem>.puzzles.json` and `<stem>.nonpuzzles.json`.
 
 ### Switching to the included Lc0-tuned defaults
 

@@ -883,7 +883,7 @@ echo "  $APP_NAME help"
 echo "  $APP_NAME print --fen \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\""
 echo "  $APP_NAME record-to-plain -i data/input.record -o dump/output.plain --sidelines"
 echo "  $APP_NAME record-to-csv -i data/input.record -o dump/output.csv"
-echo "  $APP_NAME mine -i data/seeds.pgn -o dump/ --engine-instances 4 --max-duration 60s"
+echo "  $APP_NAME mine-puzzles -i data/seeds.pgn -o dump/ --engine-instances 4 --max-duration 60s"
 echo
 echo "Optional (LC0 GPU JNI):"
 echo "  CUDA:"

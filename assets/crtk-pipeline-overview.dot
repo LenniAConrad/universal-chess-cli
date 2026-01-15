@@ -36,7 +36,7 @@ digraph crtk_pipeline_overview {
     random [label="Random\nseeds"];
 
     node [shape=box, style="rounded,filled", fillcolor="#E3F2FD", color="#1565C0", penwidth=1.2];
-    mine [label="mine"];
+    mine [label="mine-puzzles"];
 
     node [shape=note, style="filled", fillcolor="#E1F5FE", color="#0277BD", penwidth=1.2];
     puzzles [label="*.puzzles.json"];
@@ -118,4 +118,3 @@ digraph crtk_pipeline_overview {
   stack -> stack_to_dataset;
   stack_to_dataset -> tensors;
 }
-

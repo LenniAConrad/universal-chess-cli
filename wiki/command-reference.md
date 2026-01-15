@@ -73,7 +73,7 @@ Options:
 - `--ascii`: ASCII progress bar (useful when Unicode is borked)
 - `--verbose|-v`: print stack trace on failure
 
-## `mine`
+## `mine-puzzles`
 
 Drive a UCI engine, apply Filter DSL gates, and emit JSON outputs for puzzles and non-puzzles.
 

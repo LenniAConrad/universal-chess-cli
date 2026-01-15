@@ -56,7 +56,12 @@ public final class Constants {
 	public static final String CMD_GEN_FENS = "gen-fens";
 
 	/**
-	 * {@code mine} subcommand token.
+	 * {@code mine-puzzles} subcommand token.
+	 */
+	public static final String CMD_MINE_PUZZLES = "mine-puzzles";
+
+	/**
+	 * Legacy alias for {@code mine-puzzles}.
 	 */
 	public static final String CMD_MINE = "mine";
 

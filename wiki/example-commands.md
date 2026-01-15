@@ -19,10 +19,10 @@ Examples assume you installed the launcher (`crtk`). If you run from classes, re
 
 ## Mine puzzles
 
-- `crtk mine --random-count 50 --output dump/` — mine 50 random seeds into timestamped outputs under `dump/`.
-- `crtk mine --input seeds/fens.txt --output dump/fens.json` — mine from a `.txt` file; writes `dump/fens.puzzles.json` + `dump/fens.nonpuzzles.json`.
-- `crtk mine --input games.pgn --output dump/pgn.json --engine-instances 4 --max-duration 60s` — mine from PGN.
-- `crtk mine --chess960 --random-count 200 --output dump/` — Chess960 random mining.
+- `crtk mine-puzzles --random-count 50 --output dump/` — mine 50 random seeds into timestamped outputs under `dump/`.
+- `crtk mine-puzzles --input seeds/fens.txt --output dump/fens.json` — mine from a `.txt` file; writes `dump/fens.puzzles.json` + `dump/fens.nonpuzzles.json`.
+- `crtk mine-puzzles --input games.pgn --output dump/pgn.json --engine-instances 4 --max-duration 60s` — mine from PGN.
+- `crtk mine-puzzles --chess960 --random-count 200 --output dump/` — Chess960 random mining.
 
 ## Generate random FEN shards
 

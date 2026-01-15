@@ -2,9 +2,9 @@
 
 ## Output directory (`dump/`)
 
-By default, outputs are written under `dump/` (configurable via `config/cli.config.toml` or `mine --output ...`).
+By default, outputs are written under `dump/` (configurable via `config/cli.config.toml` or `mine-puzzles --output ...`).
 
-`mine --output` behavior:
+`mine-puzzles --output` behavior:
 - directory output: `standard-<timestamp>.puzzles.json` / `standard-<timestamp>.nonpuzzles.json` (or `chess960-...`)
 - file-like root (`.json` or `.jsonl`): `<stem>.puzzles.json` / `<stem>.nonpuzzles.json`
 

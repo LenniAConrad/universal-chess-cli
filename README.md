@@ -27,14 +27,20 @@ Mine puzzles from a PGN (via FEN seeds) and convert the results to CSV + PGN:
 
 ```bash
 crtk pgn-to-fens --input games.pgn --output seeds.txt
-crtk mine --input seeds.txt --output dump/run.json --engine-instances 4 --max-duration 60s
+crtk mine-puzzles --input seeds.txt --output dump/run.json --engine-instances 4 --max-duration 60s
 crtk record-to-csv --input dump/run.puzzles.json --output dump/run.puzzles.csv
 crtk record-to-pgn --input dump/run.puzzles.json --output dump/run.puzzles.pgn
 ```
 
+### Mining decision gates
+
+![ChessRTK mining decision gates](assets/crtk-mining-gates.png)
+
+Diagram source: `assets/crtk-mining-gates.dot` (render with `dot -Tpng -Gdpi=100 -o assets/crtk-mining-gates.png assets/crtk-mining-gates.dot`).
+
 Other common primitives:
 
-- Mine random seeds: `crtk mine --random-count 200 --output dump/random.json` (or endless with `--random-infinite`)
+- Mine random seeds: `crtk mine-puzzles --random-count 200 --output dump/random.json` (or endless with `--random-infinite`)
 - Validate movegen: `crtk perft --depth 5`
 - Engine probing: `crtk analyze --fen "<FEN>" --max-duration 2s`, `crtk bestmove --fen "<FEN>" --max-duration 200`, `crtk threats --fen "<FEN>" --max-duration 2s`
 - Position inspection: `crtk print --fen "<FEN>"`, `crtk display --fen "<FEN>" --special-arrows`, `crtk render --fen "<FEN>" --output dump/pos.png`
@@ -92,7 +98,7 @@ More: `wiki/build-and-install.md`
 
 ## What It Does
 
-- `mine`: evaluate lots of seeds (random / `.txt` / `.pgn`) and emit puzzles + non-puzzles JSON
+- `mine-puzzles`: evaluate lots of seeds (random / `.txt` / `.pgn`) and emit puzzles + non-puzzles JSON
 - `record-to-plain`, `record-to-csv`, `record-to-pgn`: convert `.record` analysis dumps to `.plain`, CSV, or PGN
 - `record-to-dataset`, `stack-to-dataset`: export tensors for AI training (features `(N, 781)`)
 - `print`: pretty-print a FEN as ASCII (includes tags)
